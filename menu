@@ -6,10 +6,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 -- Настройки
-local COIN_LIMITS = {40, 50}
-local currentCoinLimit = 40
-local coinsCollected = 0
-local lastCoinTime = 0
 local hideBind = Enum.KeyCode.RightShift
 local farmingSpeed = 20
 local SPEED_OPTIONS = {15, 20, 25, 30}
@@ -22,9 +18,10 @@ local dragStartPos, frameStartPos
 local infJumpEnabled = false
 local flyEnabled = false
 local noclipEnabled = false
-local flySpeed = 2
-local flyKey = Enum.KeyCode.Space
-local flyDebounce = false
+local flySpeed = 50
+local flyControls = {f = 0, b = 0, l = 0, r = 0}
+local lastFlyControls = {f = 0, b = 0, l = 0, r = 0}
+local flyBG, flyBV
 
 -- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
@@ -48,8 +45,8 @@ VersionLabel.Parent = ScreenGui
 -- Главное окно
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 250) -- Увеличена высота для новых функций
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -125)
+MainFrame.Size = UDim2.new(0, 450, 0, 220)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -110)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.BorderSizePixel = 0
@@ -314,22 +311,12 @@ end
 
 -- Элементы управления фармом
 local farmingEnabled = false
-local resetOnFullEnabled = false
-
 local CoinFarmToggle = createToggle("Auto Farm", 20, farmingEnabled, function(state)
     farmingEnabled = state
 end)
 
-local ResetOnFullToggle = createToggle("Reset On Full", 60, resetOnFullEnabled, function(state)
-    resetOnFullEnabled = state
-end)
-
-local CoinLimitDropdown = createDropdown("Coin Limit", 100, {"40", "50"}, 1, function(index)
-    currentCoinLimit = COIN_LIMITS[index]
-end)
-
 -- Dropdown для выбора скорости
-local SpeedDropdown = createDropdown("Farm Speed", 140, {"15", "20", "25", "30"}, currentSpeedIndex, function(index)
+local SpeedDropdown = createDropdown("Farm Speed", 60, {"15", "20", "25", "30"}, currentSpeedIndex, function(index)
     farmingSpeed = SPEED_OPTIONS[index]
 end)
 
@@ -340,20 +327,24 @@ end, TabFrames["Player"])
 
 local FlyToggle = createToggle("Fly", 70, flyEnabled, function(state)
     flyEnabled = state
-    if not state then
-        -- Отключаем полет
-        if LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
-            LP.Character:FindFirstChildOfClass("Humanoid").PlatformStand = false
-        end
+    if state then
+        startFly()
+    else
+        stopFly()
     end
 end, TabFrames["Player"], "RISK")
 
 local NoclipToggle = createToggle("Noclip", 120, noclipEnabled, function(state)
     noclipEnabled = state
+    if state then
+        noclip()
+    else
+        clip()
+    end
 end, TabFrames["Player"], "RISK")
 
-local FlySpeedDropdown = createDropdown("Fly Speed", 170, {"1", "2", "3", "4", "5"}, 2, function(index)
-    flySpeed = index
+local FlySpeedDropdown = createDropdown("Fly Speed", 170, {"30", "50", "70", "100"}, 2, function(index)
+    flySpeed = ({30, 50, 70, 100})[index]
 end, TabFrames["Player"])
 
 -- Настройки вкладки Settings
@@ -498,91 +489,121 @@ local function tpToCoin(coin)
     return true
 end
 
--- Функция для проверки заполненности сумки
-local function checkBagFull()
-    if not resetOnFullEnabled then return false end
-    
-    -- Ищем GUI сумки
-    local mainGui = LP:WaitForChild("PlayerGui"):FindFirstChild("MainGui")
-    if not mainGui then return false end
-    
-    local container = mainGui:FindFirstChild("Container")
-    if not container then return false end
-    
-    -- Проверяем все сумки
-    for _, bagFrame in pairs(container:GetChildren()) do
-        if bagFrame:IsA("Frame") then
-            local fullIndicator = bagFrame:FindFirstChild("Full")
-            if fullIndicator and fullIndicator.Visible then
-                -- Если сумка полная - убиваем персонажа
-                local char = LP.Character
-                if char then
-                    local humanoid = char:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid.Health = 0
-                        return true
-                    end
-                end
-            end
-        end
-    end
-    
-    return false
-end
-
 -- Функции для Player-вкладки
-local function handleInfJump()
-    if infJumpEnabled then
-        UserInputService.JumpRequest:Connect(function()
-            if infJumpEnabled and LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
-                LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
-            end
-        end)
-    end
-end
+local NoclipConnection = nil
+local Clip = true
 
-local function handleFly()
-    if flyEnabled and LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
-        local humanoid = LP.Character:FindFirstChildOfClass("Humanoid")
-        humanoid.PlatformStand = true
-        
-        local bodyVelocity = Instance.new("BodyVelocity")
-        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-        bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
-        bodyVelocity.Parent = LP.Character:FindFirstChild("HumanoidRootPart")
-        
-        UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if flyEnabled and not gameProcessed then
-                if input.KeyCode == Enum.KeyCode.Space then
-                    bodyVelocity.Velocity = Vector3.new(0, flySpeed * 50, 0)
-                elseif input.KeyCode == Enum.KeyCode.LeftShift then
-                    bodyVelocity.Velocity = Vector3.new(0, -flySpeed * 50, 0)
+function noclip()
+    Clip = false
+    if NoclipConnection then NoclipConnection:Disconnect() end
+    
+    NoclipConnection = RunService.Stepped:Connect(function()
+        if not Clip and LP.Character then
+            for _, v in pairs(LP.Character:GetDescendants()) do
+                if v:IsA('BasePart') and v.CanCollide then
+                    v.CanCollide = false
                 end
             end
-        end)
-        
-        UserInputService.InputEnded:Connect(function(input, gameProcessed)
-            if flyEnabled and not gameProcessed then
-                if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.LeftShift then
-                    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-                end
-            end
-        end)
-        
-        return bodyVelocity
-    end
-    return nil
+        end
+    end)
 end
 
-local function handleNoclip()
-    if noclipEnabled and LP.Character then
-        for _, part in pairs(LP.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
+function clip()
+    if NoclipConnection then NoclipConnection:Disconnect() end
+    Clip = true
+    if LP.Character then
+        for _, v in pairs(LP.Character:GetDescendants()) do
+            if v:IsA('BasePart') then
+                v.CanCollide = true
             end
         end
     end
 end
+
+function startFly()
+    if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local torso = LP.Character.HumanoidRootPart
+    if flyBG then flyBG:Destroy() end
+    if flyBV then flyBV:Destroy() end
+    
+    flyBG = Instance.new("BodyGyro", torso)
+    flyBG.P = 9e4
+    flyBG.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    flyBG.cframe = torso.CFrame
+    
+    flyBV = Instance.new("BodyVelocity", torso)
+    flyBV.velocity = Vector3.new(0, 0.1, 0)
+    flyBV.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    
+    LP.Character.Humanoid.PlatformStand = true
+    
+    -- Обработка управления полетом
+    local flyConnection
+    flyConnection = RunService.Stepped:Connect(function()
+        if not flyEnabled or not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then
+            flyConnection:Disconnect()
+            return
+        end
+        
+        local torso = LP.Character.HumanoidRootPart
+        local cam = workspace.CurrentCamera.CoordinateFrame
+        
+        if (flyControls.l + flyControls.r) ~= 0 or (flyControls.f + flyControls.b) ~= 0 then
+            flyBV.velocity = ((cam.lookVector * (flyControls.f + flyControls.b)) + 
+                             ((cam * CFrame.new(flyControls.l + flyControls.r, (flyControls.f + flyControls.b) * 0.2, 0).p) - cam.p)) * flySpeed
+            lastFlyControls = {f = flyControls.f, b = flyControls.b, l = flyControls.l, r = flyControls.r}
+        elseif (flyControls.l + flyControls.r) == 0 and (flyControls.f + flyControls.b) == 0 then
+            flyBV.velocity = Vector3.new(0, 0.1, 0)
+        end
+        
+        flyBG.cframe = cam * CFrame.Angles(-math.rad((flyControls.f + flyControls.b) * 50 * 0.1), 0, 0)
+    end)
+end
+
+function stopFly()
+    if flyBG then flyBG:Destroy() end
+    if flyBV then flyBV:Destroy() end
+    if LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
+        LP.Character:FindFirstChildOfClass("Humanoid").PlatformStand = false
+    end
+end
+
+-- Обработка управления полетом
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed or not flyEnabled then return end
+    
+    if input.KeyCode == Enum.KeyCode.W then
+        flyControls.f = 1
+    elseif input.KeyCode == Enum.KeyCode.S then
+        flyControls.b = -1
+    elseif input.KeyCode == Enum.KeyCode.A then
+        flyControls.l = -1
+    elseif input.KeyCode == Enum.KeyCode.D then
+        flyControls.r = 1
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+    if gameProcessed or not flyEnabled then return end
+    
+    if input.KeyCode == Enum.KeyCode.W then
+        flyControls.f = 0
+    elseif input.KeyCode == Enum.KeyCode.S then
+        flyControls.b = 0
+    elseif input.KeyCode == Enum.KeyCode.A then
+        flyControls.l = 0
+    elseif input.KeyCode == Enum.KeyCode.D then
+        flyControls.r = 0
+    end
+end)
+
+-- Бесконечные прыжки
+UserInputService.JumpRequest:Connect(function()
+    if infJumpEnabled and LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
+        LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
+    end
+end)
 
 -- Перемещение окна
 TitleBar.InputBegan:Connect(function(input)
@@ -629,12 +650,6 @@ local function farmCoins()
                 continue
             end
             
-            -- Проверяем заполненность сумки
-            if checkBagFull() then
-                task.wait(1)
-                continue
-            end
-            
             -- Ищем ближайшую монету
             local target = getNearest()
             
@@ -675,9 +690,16 @@ LP.CharacterAdded:Connect(function(character)
     refreshCharacter()
     
     -- Применяем функции Player-вкладки при возрождении
-    if infJumpEnabled then handleInfJump() end
-    if flyEnabled then handleFly() end
-    if noclipEnabled then handleNoclip() end
+    if infJumpEnabled then
+        -- Бесконечные прыжки уже подключены через JumpRequest
+    end
+    if flyEnabled then 
+        task.wait(0.5) -- Даем время персонажу заспауниться
+        startFly() 
+    end
+    if noclipEnabled then 
+        noclip() 
+    end
 end)
 
 -- Обработка бинда скрытия
@@ -688,25 +710,5 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- Цикл для Player-функций
-RunService.Stepped:Connect(function()
-    if noclipEnabled and LP.Character then
-        for _, part in pairs(LP.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
-    end
-end)
-
 -- Запускаем основные функции
 coroutine.wrap(farmCoins)()
-handleInfJump()
-coroutine.wrap(function()
-    while true do
-        if flyEnabled then
-            handleFly()
-        end
-        task.wait(0.1)
-    end
-end)()

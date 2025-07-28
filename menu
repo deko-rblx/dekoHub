@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 -- Настройки
 local COIN_LIMITS = {40, 50}
@@ -10,17 +11,20 @@ local currentCoinLimit = 40
 local coinsCollected = 0
 local lastCoinTime = 0
 local hideBind = Enum.KeyCode.RightShift
-local farmingSpeed = 20 -- Базовая скорость
-local SPEED_OPTIONS = {15, 20, 25, 30} -- Варианты скорости
-local currentSpeedIndex = 2 -- По умолчанию 20
+local farmingSpeed = 20
+local SPEED_OPTIONS = {15, 20, 25, 30}
+local currentSpeedIndex = 2
 local menuVisible = true
+local isDragging = false
+local dragStartPos, frameStartPos
 
 -- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DekoUI"
+ScreenGui.ResetOnSpawn = false -- Важно! Предотвращает исчезновение GUI при смерти
 ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Текст версии сверху слева
+-- Текст версии
 local VersionLabel = Instance.new("TextLabel")
 VersionLabel.Name = "VersionLabel"
 VersionLabel.Size = UDim2.new(0, 100, 0, 20)
@@ -33,19 +37,22 @@ VersionLabel.TextSize = 14
 VersionLabel.TextXAlignment = Enum.TextXAlignment.Left
 VersionLabel.Parent = ScreenGui
 
+-- Главное окно
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 220) -- Увеличили высоту для новых элементов
+MainFrame.Size = UDim2.new(0, 450, 0, 220)
 MainFrame.Position = UDim2.new(0.5, -225, 0.5, -110)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
+-- Скругление углов
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 6)
 UICorner.Parent = MainFrame
 
+-- TitleBar для перемещения
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
 TitleBar.Size = UDim2.new(1, 0, 0, 25)
@@ -70,6 +77,7 @@ Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TitleBar
 
+-- Кнопки управления
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
@@ -94,6 +102,7 @@ CloseButton.Font = Enum.Font.GothamBold
 CloseButton.TextSize = 14
 CloseButton.Parent = TitleBar
 
+-- Эффекты кнопок
 CloseButton.MouseEnter:Connect(function()
     CloseButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
 end)
@@ -297,7 +306,7 @@ local CoinLimitDropdown = createDropdown("Coin Limit", 100, {"40", "50"}, 1, fun
     currentCoinLimit = COIN_LIMITS[index]
 end)
 
--- Добавляем выбор скорости
+-- Dropdown для выбора скорости
 local SpeedDropdown = createDropdown("Farm Speed", 140, {"15", "20", "25", "30"}, currentSpeedIndex, function(index)
     farmingSpeed = SPEED_OPTIONS[index]
 end)
@@ -446,44 +455,70 @@ end
 
 -- Функция для проверки заполненности сумки
 local function checkBagFull()
-    if not resetOnFullEnabled then return end
+    if not resetOnFullEnabled then return false end
     
-    -- Получаем контейнер с сумками
-    local container = LP.PlayerGui:FindFirstChild("MainGui") and 
-                     LP.PlayerGui.MainGui:FindFirstChild("Container")
+    -- Ищем GUI сумки
+    local mainGui = LP:WaitForChild("PlayerGui"):FindFirstChild("MainGui")
+    if not mainGui then return false end
     
-    if container then
-        for _, bagFrame in pairs(container:GetChildren()) do
-            if bagFrame:IsA("Frame") and bagFrame:FindFirstChild("Full") then
-                if bagFrame.Full.Visible then
-                    -- Если сумка полная - убиваем персонажа
-                    local char = LP.Character
-                    if char then
-                        local humanoid = char:FindFirstChildOfClass("Humanoid")
-                        if humanoid then
-                            humanoid.Health = 0
-                            return true
-                        end
+    local container = mainGui:FindFirstChild("Container")
+    if not container then return false end
+    
+    -- Проверяем все сумки
+    for _, bagFrame in pairs(container:GetChildren()) do
+        if bagFrame:IsA("Frame") then
+            local fullIndicator = bagFrame:FindFirstChild("Full")
+            if fullIndicator and fullIndicator.Visible then
+                -- Если сумка полная - убиваем персонажа
+                local char = LP.Character
+                if char then
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid.Health = 0
+                        return true
                     end
                 end
             end
         end
     end
+    
     return false
 end
 
+-- Перемещение окна
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStartPos = input.Position
+        frameStartPos = MainFrame.Position
+    end
+end)
+
+TitleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStartPos
+        MainFrame.Position = UDim2.new(
+            frameStartPos.X.Scale, 
+            frameStartPos.X.Offset + delta.X,
+            frameStartPos.Y.Scale, 
+            frameStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
 -- Основной цикл фарма
 local function farmCoins()
-    refreshCharacter()
-    
-    -- Обработчик возрождения персонажа
-    LP.CharacterAdded:Connect(function(character)
-        refreshCharacter()
-        MainFrame.Visible = menuVisible -- Восстанавливаем видимость меню
-    end)
-
     while true do
-        if farmingEnabled then
+        if farmingEnabled and LP.Character then
+            -- Обновляем ссылки на персонажа
+            refreshCharacter()
+            
             -- Ждем пока игрок жив
             while not LP:GetAttribute("Alive") do
                 task.wait(0.5)
@@ -491,7 +526,6 @@ local function farmCoins()
             
             -- Проверяем наличие персонажа
             if not LP.Character or not HRP or not Humanoid then
-                refreshCharacter()
                 task.wait(1)
                 continue
             end
@@ -535,11 +569,20 @@ local function farmCoins()
     end
 end
 
+-- Обработчик возрождения персонажа
+LP.CharacterAdded:Connect(function(character)
+    -- Восстанавливаем видимость меню после смерти
+    MainFrame.Visible = menuVisible
+    VersionLabel.Visible = true
+    refreshCharacter()
+end)
+
 -- Обработка бинда скрытия
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.KeyCode == hideBind then
         menuVisible = not menuVisible
         MainFrame.Visible = menuVisible
+        VersionLabel.Visible = menuVisible
     end
 end)
 

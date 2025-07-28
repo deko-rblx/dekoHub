@@ -9,6 +9,8 @@ local COIN_LIMITS = {40, 50}
 local currentCoinLimit = 40
 local coinsCollected = 0
 local lastCoinTime = 0
+local hideBind = Enum.KeyCode.RightShift
+local farmingSpeed = 15 -- Уменьшенная скорость (было 25)
 
 -- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
@@ -24,7 +26,6 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
--- Скругление углов
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 6)
 UICorner.Parent = MainFrame
@@ -37,7 +38,6 @@ TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
 
--- Скругление только сверху
 local UICornerTitle = Instance.new("UICorner")
 UICornerTitle.CornerRadius = UDim.new(0, 6)
 UICornerTitle.Parent = TitleBar
@@ -54,7 +54,6 @@ Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TitleBar
 
--- Кнопки управления
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
@@ -79,7 +78,6 @@ CloseButton.Font = Enum.Font.GothamBold
 CloseButton.TextSize = 14
 CloseButton.Parent = TitleBar
 
--- Эффекты кнопок
 CloseButton.MouseEnter:Connect(function()
     CloseButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
 end)
@@ -105,7 +103,7 @@ TabButtons.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 TabButtons.BorderSizePixel = 0
 TabButtons.Parent = MainFrame
 
-local Tabs = {"Farm", "ESP", "Fun"}
+local Tabs = {"Farm", "Settings", "ESP", "Fun"}
 local TabFrames = {}
 
 for i, tabName in ipairs(Tabs) do
@@ -170,7 +168,6 @@ end)
 local FarmFrame = TabFrames["Farm"]
 local farmingEnabled = false
 local resetOnFullEnabled = false
-local HRP, Humanoid
 
 local function createToggle(name, posY, defaultValue, callback)
     local ToggleFrame = Instance.new("Frame")
@@ -285,7 +282,80 @@ local CoinLimitDropdown = createDropdown("Coin Limit", 100, {"40", "50"}, 1, fun
     currentCoinLimit = COIN_LIMITS[index]
 end)
 
+-- Настройки вкладки Settings
+local SettingsFrame = TabFrames["Settings"]
+
+local function createKeybindButton(name, posY, currentKey, callback)
+    local KeybindFrame = Instance.new("Frame")
+    KeybindFrame.Name = name.."Keybind"
+    KeybindFrame.Size = UDim2.new(0, 200, 0, 30)
+    KeybindFrame.Position = UDim2.new(0, 20, 0, posY)
+    KeybindFrame.BackgroundTransparency = 1
+    KeybindFrame.Parent = SettingsFrame
+    
+    local KeybindText = Instance.new("TextLabel")
+    KeybindText.Name = "Text"
+    KeybindText.Size = UDim2.new(0, 120, 1, 0)
+    KeybindText.Position = UDim2.new(0, 0, 0, 0)
+    KeybindText.Text = name
+    KeybindText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    KeybindText.Font = Enum.Font.Gotham
+    KeybindText.TextSize = 12
+    KeybindText.TextXAlignment = Enum.TextXAlignment.Left
+    KeybindText.BackgroundTransparency = 1
+    KeybindText.Parent = KeybindFrame
+    
+    local KeybindButton = Instance.new("TextButton")
+    KeybindButton.Name = "Button"
+    KeybindButton.Size = UDim2.new(0, 70, 0, 25)
+    KeybindButton.Position = UDim2.new(0, 120, 0.5, -12)
+    KeybindButton.Text = tostring(currentKey):gsub("Enum.KeyCode.", "")
+    KeybindButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    KeybindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    KeybindButton.Font = Enum.Font.Gotham
+    KeybindButton.TextSize = 12
+    KeybindButton.BorderSizePixel = 0
+    KeybindButton.Parent = KeybindFrame
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 4)
+    UICorner.Parent = KeybindButton
+    
+    local listening = false
+    
+    KeybindButton.MouseButton1Click:Connect(function()
+        listening = true
+        KeybindButton.Text = "[Press Key]"
+        KeybindButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    end)
+    
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if listening and not gameProcessed then
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                listening = false
+                currentKey = input.KeyCode
+                KeybindButton.Text = tostring(currentKey):gsub("Enum.KeyCode.", "")
+                KeybindButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                callback(currentKey)
+            end
+        end
+    end)
+    
+    return {
+        Update = function(key)
+            currentKey = key
+            KeybindButton.Text = tostring(key):gsub("Enum.KeyCode.", "")
+        end
+    }
+end
+
+local HideBindButton = createKeybindButton("Hide Menu Bind", 20, hideBind, function(newKey)
+    hideBind = newKey
+end)
+
 -- Функции фарма
+local HRP, Humanoid
+
 local function getHRP()
     while true do
         if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
@@ -347,7 +417,7 @@ local function tpToCoin(coin)
     local distance = (HRP.Position - coin.Position).Magnitude
     local tween = TweenService:Create(
         HRP,
-        TweenInfo.new(distance / 25, Enum.EasingStyle.Linear),
+        TweenInfo.new(distance / farmingSpeed, Enum.EasingStyle.Linear), -- Используем farmingSpeed
         {CFrame = coin.CFrame}
     )
     
@@ -356,14 +426,11 @@ local function tpToCoin(coin)
     return true
 end
 
--- Функция для проверки количества монет и смерти при необходимости
 local function checkCoinLimit()
     if not resetOnFullEnabled then return end
     
-    -- Получаем текущее количество монет (адаптируйте под вашу игру)
     local currentCoins = 0
     local success, err = pcall(function()
-        -- Попробуйте разные способы получения количества монет в зависимости от игры
         if LP:FindFirstChild("leaderstats") and LP.leaderstats:FindFirstChild("Coins") then
             currentCoins = LP.leaderstats.Coins.Value
         elseif LP:FindFirstChild("Coins") then
@@ -376,19 +443,15 @@ local function checkCoinLimit()
         return
     end
     
-    -- Если монет больше лимита - умираем
     if currentCoins >= currentCoinLimit and os.time() - lastCoinTime > 2 then
         lastCoinTime = os.time()
-        
-        -- Способ смерти (адаптируйте под вашу игру)
         local char = LP.Character
         if char then
             local humanoid = char:FindFirstChildOfClass("Humanoid")
             if humanoid then
                 humanoid.Health = 0
-                coinsCollected = 0 -- Сбрасываем счетчик
+                coinsCollected = 0
                 
-                -- Альтернативный способ через RemoteEvent (если есть)
                 local deathEvent = ReplicatedStorage:FindFirstChild("DeathEvent")
                 if deathEvent then
                     deathEvent:FireServer()
@@ -407,26 +470,21 @@ local function farmCoins()
 
     while true do
         if farmingEnabled then
-            -- Ждем пока игрок жив
             while not LP:GetAttribute("Alive") do
                 task.wait(0.5)
             end
             
-            -- Проверяем наличие персонажа
             if not LP.Character or not HRP or not Humanoid then
                 refreshCharacter()
                 task.wait(1)
                 continue
             end
             
-            -- Проверяем лимит монет
             checkCoinLimit()
             
-            -- Ищем ближайшую монету
             local target = getNearest()
             
             if target then
-                -- Пытаемся телепортироваться
                 local success = pcall(function()
                     tpToCoin(target)
                 end)
@@ -434,16 +492,13 @@ local function farmCoins()
                 if not success then
                     refreshCharacter()
                 else
-                    -- Увеличиваем счетчик собранных монет
                     coinsCollected = coinsCollected + 1
                 end
                 
-                -- Ожидаем пока монета не будет собрана
                 local v = target:FindFirstChild("CoinVisual")
                 while v and not v:GetAttribute("Collected") and v.Parent do
                     if not LP:GetAttribute("Alive") then break end
                     
-                    -- Проверяем не появилась ли более близкая монета
                     local newTarget = getNearest()
                     if newTarget and newTarget ~= target then
                         target = newTarget
@@ -458,5 +513,12 @@ local function farmCoins()
     end
 end
 
--- Запускаем фарм в отдельном потоке
+-- Обработка бинда скрытия
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == hideBind then
+        MainFrame.Visible = not MainFrame.Visible
+    end
+end)
+
+-- Запускаем фарм
 coroutine.wrap(farmCoins)()

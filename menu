@@ -10,12 +10,26 @@ local currentCoinLimit = 40
 local coinsCollected = 0
 local lastCoinTime = 0
 local hideBind = Enum.KeyCode.RightShift
-local farmingSpeed = 15 -- Уменьшенная скорость (было 25)
+local farmingSpeed = 22 -- Увеличенная скорость (было 15)
+local menuVisible = true
 
 -- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DekoUI"
 ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- Текст версии сверху слева
+local VersionLabel = Instance.new("TextLabel")
+VersionLabel.Name = "VersionLabel"
+VersionLabel.Size = UDim2.new(0, 100, 0, 20)
+VersionLabel.Position = UDim2.new(0, 10, 0, 10)
+VersionLabel.BackgroundTransparency = 1
+VersionLabel.Text = "Using Deko v1.0"
+VersionLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+VersionLabel.Font = Enum.Font.GothamBold
+VersionLabel.TextSize = 14
+VersionLabel.TextXAlignment = Enum.TextXAlignment.Left
+VersionLabel.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
@@ -329,7 +343,8 @@ local function createKeybindButton(name, posY, currentKey, callback)
         KeybindButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
     end)
     
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    local connection
+    connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if listening and not gameProcessed then
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 listening = false
@@ -337,6 +352,7 @@ local function createKeybindButton(name, posY, currentKey, callback)
                 KeybindButton.Text = tostring(currentKey):gsub("Enum.KeyCode.", "")
                 KeybindButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
                 callback(currentKey)
+                connection:Disconnect()
             end
         end
     end)
@@ -417,7 +433,7 @@ local function tpToCoin(coin)
     local distance = (HRP.Position - coin.Position).Magnitude
     local tween = TweenService:Create(
         HRP,
-        TweenInfo.new(distance / farmingSpeed, Enum.EasingStyle.Linear), -- Используем farmingSpeed
+        TweenInfo.new(distance / farmingSpeed, Enum.EasingStyle.Linear),
         {CFrame = coin.CFrame}
     )
     
@@ -466,6 +482,7 @@ local function farmCoins()
     refreshCharacter()
     LP.CharacterAdded:Connect(function()
         refreshCharacter()
+        MainFrame.Visible = menuVisible -- Восстанавливаем видимость меню после смерти
     end)
 
     while true do
@@ -516,7 +533,8 @@ end
 -- Обработка бинда скрытия
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.KeyCode == hideBind then
-        MainFrame.Visible = not MainFrame.Visible
+        menuVisible = not menuVisible
+        MainFrame.Visible = menuVisible
     end
 end)
 

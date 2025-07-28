@@ -1,25 +1,22 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 
--- Autofarm Variables
+-- Переменные
 local LP = Players.LocalPlayer
 local Char = LP.Character or LP.CharacterAdded:Wait()
 local HRP = Char:WaitForChild("HumanoidRootPart")
 local Humanoid = Char:WaitForChild("Humanoid")
-local AutofarmEnabled = false
-local CurrentMap = nil
-local AutofarmConnection = nil
+local AutoFarmEnabled = false
+local FarmInterval = 15 -- Интервал в секундах
+local FarmConnection = nil
 
--- Simple UI Creation
+-- Создаем простой UI
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SimpleAutofarmUI"
+ScreenGui.Name = "AutoFarmUI"
 ScreenGui.Parent = game.CoreGui
-ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 200, 0, 60)
 MainFrame.Position = UDim2.new(0, 10, 0, 10)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -31,12 +28,11 @@ UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = MainFrame
 
 local ToggleButton = Instance.new("TextButton")
-ToggleButton.Name = "ToggleButton"
 ToggleButton.Size = UDim2.new(0.9, 0, 0.7, 0)
 ToggleButton.Position = UDim2.new(0.05, 0, 0.15, 0)
 ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Text = "Autofarm: OFF"
+ToggleButton.Text = "AutoFarm: OFF"
 ToggleButton.Font = Enum.Font.GothamBold
 ToggleButton.TextSize = 14
 ToggleButton.Parent = MainFrame
@@ -45,30 +41,22 @@ local ButtonCorner = Instance.new("UICorner")
 ButtonCorner.CornerRadius = UDim.new(0, 6)
 ButtonCorner.Parent = ToggleButton
 
--- Improved Map Detection with Auto-Restart
-function GetCurrentMap()
-    for _, obj in ipairs(workspace:GetChildren()) do
-        if obj:GetAttribute("MapID") and obj:FindFirstChild("CoinContainer") then
-            return obj
+-- Функции для фарма
+local function GetMap()
+    while true do
+        for _, obj in ipairs(workspace:GetChildren()) do
+            if obj:GetAttribute("MapID") and obj:FindFirstChild("CoinContainer") then
+                return obj
+            end
         end
-    end
-    return nil
-end
-
-function CheckMapChange()
-    local newMap = GetCurrentMap()
-    if newMap ~= CurrentMap then
-        CurrentMap = newMap
-        if AutofarmEnabled then
-            StartAutofarm()
-        end
+        task.wait()
     end
 end
 
-function getNearest()
-    if not CurrentMap then return nil end
+local function getNearest()
+    local map = GetMap()
     local closest, dist = nil, math.huge
-    for _, coin in ipairs(CurrentMap.CoinContainer:GetChildren()) do
+    for _, coin in ipairs(map.CoinContainer:GetChildren()) do
         local v = coin:FindFirstChild("CoinVisual")
         if v and not v:GetAttribute("Collected") then
             local d = (HRP.Position - coin.Position).Magnitude
@@ -81,7 +69,7 @@ function getNearest()
     return closest
 end
 
-function tp(hp)
+local function tp(hp)
     Humanoid:ChangeState(11)
     local d = (HRP.Position - hp.Position).Magnitude
     local t = TweenService:Create(HRP, TweenInfo.new(d / 25, Enum.EasingStyle.Linear), {CFrame = hp.CFrame})
@@ -89,59 +77,55 @@ function tp(hp)
     t.Completed:Wait()
 end
 
-function AutofarmLoop()
-    while AutofarmEnabled and task.wait() do
-        CheckMapChange() -- Check for map changes
-        
-        local target = getNearest()
-        if target and LP:GetAttribute("Alive") then
-            tp(target)
-            local v = target:FindFirstChild("CoinVisual")
-            while v and not v:GetAttribute("Collected") and v.Parent do
-                if not AutofarmEnabled or not LP:GetAttribute("Alive") then break end
-                local n = getNearest()
-                if n and n ~= target then break end
-                task.wait()
-            end
+local function RunFarmCycle()
+    local target = getNearest()
+    if target and LP:GetAttribute("Alive") then
+        tp(target)
+        local v = target:FindFirstChild("CoinVisual")
+        while v and not v:GetAttribute("Collected") and v.Parent do
+            if not AutoFarmEnabled or not LP:GetAttribute("Alive") then break end
+            local n = getNearest()
+            if n and n ~= target then break end
+            task.wait()
         end
     end
 end
 
-function StartAutofarm()
-    if AutofarmConnection then
-        AutofarmConnection:Disconnect()
+-- Функция для периодического выполнения фарма
+local function StartAutoFarm()
+    if FarmConnection then
+        FarmConnection:Disconnect()
     end
     
-    CurrentMap = GetCurrentMap()
-    AutofarmConnection = RunService.Heartbeat:Connect(function()
-        if not AutofarmEnabled then return end
-        AutofarmLoop()
+    FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        if not AutoFarmEnabled then return end
+        
+        RunFarmCycle()
+        task.wait(FarmInterval) -- Ждем 15 секунд перед следующим запуском
     end)
 end
 
-function ToggleAutofarm()
-    AutofarmEnabled = not AutofarmEnabled
-    ToggleButton.Text = AutofarmEnabled and "Autofarm: ON" or "Autofarm: OFF"
-    ToggleButton.BackgroundColor3 = AutofarmEnabled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
+-- Обработчик кнопки
+ToggleButton.MouseButton1Click:Connect(function()
+    AutoFarmEnabled = not AutoFarmEnabled
+    ToggleButton.Text = AutoFarmEnabled and "AutoFarm: ON" or "AutoFarm: OFF"
+    ToggleButton.BackgroundColor3 = AutoFarmEnabled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
     
-    if AutofarmEnabled then
-        StartAutofarm()
-    elseif AutofarmConnection then
-        AutofarmConnection:Disconnect()
-    end
-end
-
--- Initialize
-ToggleButton.MouseButton1Click:Connect(ToggleAutofarm)
-
--- Hotkey (F to toggle)
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.F and not gameProcessed then
-        ToggleAutofarm()
+    if AutoFarmEnabled then
+        StartAutoFarm()
+    elseif FarmConnection then
+        FarmConnection:Disconnect()
     end
 end)
 
--- Make UI draggable
+-- Горячая клавиша (F для включения/выключения)
+UIS.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.F and not gameProcessed then
+        ToggleButton:Activate()
+    end
+end)
+
+-- Делаем окно перетаскиваемым
 local dragging, dragInput, dragStart, startPos
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -170,4 +154,4 @@ UIS.InputChanged:Connect(function(input)
     end
 end)
 
-print("Simple Autofarm loaded! Press F to toggle.")
+print("AutoFarm loaded! Press F to toggle.")

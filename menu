@@ -18,13 +18,21 @@ local menuVisible = true
 local isDragging = false
 local dragStartPos, frameStartPos
 
+-- Состояния Player-функций
+local infJumpEnabled = false
+local flyEnabled = false
+local noclipEnabled = false
+local flySpeed = 2
+local flyKey = Enum.KeyCode.Space
+local flyDebounce = false
+
 -- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DekoUI"
-ScreenGui.ResetOnSpawn = false -- Важно! Предотвращает исчезновение GUI при смерти
+ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Текст версии
+-- Текст версии (всегда видим)
 local VersionLabel = Instance.new("TextLabel")
 VersionLabel.Name = "VersionLabel"
 VersionLabel.Size = UDim2.new(0, 100, 0, 20)
@@ -40,8 +48,8 @@ VersionLabel.Parent = ScreenGui
 -- Главное окно
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 220)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -110)
+MainFrame.Size = UDim2.new(0, 450, 0, 250) -- Увеличена высота для новых функций
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -125)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.BorderSizePixel = 0
@@ -128,7 +136,7 @@ TabButtons.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 TabButtons.BorderSizePixel = 0
 TabButtons.Parent = MainFrame
 
-local Tabs = {"Farm", "Settings", "ESP", "Fun"}
+local Tabs = {"Farm", "Player", "Settings", "ESP", "Fun"}
 local TabFrames = {}
 
 for i, tabName in ipairs(Tabs) do
@@ -190,18 +198,18 @@ CloseButton.MouseButton1Click:Connect(function()
 end)
 
 -- Функции для создания элементов UI
-local function createToggle(name, posY, defaultValue, callback)
+local function createToggle(name, posY, defaultValue, callback, parentFrame, warningText)
     local ToggleFrame = Instance.new("Frame")
     ToggleFrame.Name = name.."Toggle"
-    ToggleFrame.Size = UDim2.new(0, 150, 0, 30)
+    ToggleFrame.Size = UDim2.new(0, 150, 0, warningText and 40 or 30)
     ToggleFrame.Position = UDim2.new(0, 20, 0, posY)
     ToggleFrame.BackgroundTransparency = 1
-    ToggleFrame.Parent = TabFrames["Farm"]
+    ToggleFrame.Parent = parentFrame or TabFrames["Farm"]
     
     local ToggleButton = Instance.new("TextButton")
     ToggleButton.Name = "Button"
     ToggleButton.Size = UDim2.new(0, 40, 0, 20)
-    ToggleButton.Position = UDim2.new(0, 100, 0.5, -10)
+    ToggleButton.Position = UDim2.new(0, 100, 0, 0)
     ToggleButton.Text = ""
     ToggleButton.BackgroundColor3 = defaultValue and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
     ToggleButton.AutoButtonColor = false
@@ -214,7 +222,7 @@ local function createToggle(name, posY, defaultValue, callback)
     
     local ToggleText = Instance.new("TextLabel")
     ToggleText.Name = "Text"
-    ToggleText.Size = UDim2.new(0, 90, 1, 0)
+    ToggleText.Size = UDim2.new(0, 90, 0, 20)
     ToggleText.Position = UDim2.new(0, 0, 0, 0)
     ToggleText.Text = name
     ToggleText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -223,6 +231,20 @@ local function createToggle(name, posY, defaultValue, callback)
     ToggleText.TextXAlignment = Enum.TextXAlignment.Left
     ToggleText.BackgroundTransparency = 1
     ToggleText.Parent = ToggleFrame
+    
+    if warningText then
+        local WarningLabel = Instance.new("TextLabel")
+        WarningLabel.Name = "Warning"
+        WarningLabel.Size = UDim2.new(1, 0, 0, 15)
+        WarningLabel.Position = UDim2.new(0, 0, 0, 25)
+        WarningLabel.Text = warningText
+        WarningLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+        WarningLabel.Font = Enum.Font.Gotham
+        WarningLabel.TextSize = 10
+        WarningLabel.TextXAlignment = Enum.TextXAlignment.Left
+        WarningLabel.BackgroundTransparency = 1
+        WarningLabel.Parent = ToggleFrame
+    end
     
     local function updateState(state)
         ToggleButton.BackgroundColor3 = state and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
@@ -237,13 +259,13 @@ local function createToggle(name, posY, defaultValue, callback)
     return {Update = updateState}
 end
 
-local function createDropdown(name, posY, options, defaultIndex, callback)
+local function createDropdown(name, posY, options, defaultIndex, callback, parentFrame)
     local DropdownFrame = Instance.new("Frame")
     DropdownFrame.Name = name.."Dropdown"
     DropdownFrame.Size = UDim2.new(0, 150, 0, 30)
     DropdownFrame.Position = UDim2.new(0, 20, 0, posY)
     DropdownFrame.BackgroundTransparency = 1
-    DropdownFrame.Parent = TabFrames["Farm"]
+    DropdownFrame.Parent = parentFrame or TabFrames["Farm"]
     
     local DropdownButton = Instance.new("TextButton")
     DropdownButton.Name = "Button"
@@ -310,6 +332,29 @@ end)
 local SpeedDropdown = createDropdown("Farm Speed", 140, {"15", "20", "25", "30"}, currentSpeedIndex, function(index)
     farmingSpeed = SPEED_OPTIONS[index]
 end)
+
+-- Функции для вкладки Player
+local InfJumpToggle = createToggle("Inf Jump", 20, infJumpEnabled, function(state)
+    infJumpEnabled = state
+end, TabFrames["Player"])
+
+local FlyToggle = createToggle("Fly", 70, flyEnabled, function(state)
+    flyEnabled = state
+    if not state then
+        -- Отключаем полет
+        if LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
+            LP.Character:FindFirstChildOfClass("Humanoid").PlatformStand = false
+        end
+    end
+end, TabFrames["Player"], "RISK")
+
+local NoclipToggle = createToggle("Noclip", 120, noclipEnabled, function(state)
+    noclipEnabled = state
+end, TabFrames["Player"], "RISK")
+
+local FlySpeedDropdown = createDropdown("Fly Speed", 170, {"1", "2", "3", "4", "5"}, 2, function(index)
+    flySpeed = index
+end, TabFrames["Player"])
 
 -- Настройки вкладки Settings
 local function createKeybindButton(name, posY, currentKey, callback)
@@ -485,6 +530,60 @@ local function checkBagFull()
     return false
 end
 
+-- Функции для Player-вкладки
+local function handleInfJump()
+    if infJumpEnabled then
+        UserInputService.JumpRequest:Connect(function()
+            if infJumpEnabled and LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
+                LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end)
+    end
+end
+
+local function handleFly()
+    if flyEnabled and LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
+        local humanoid = LP.Character:FindFirstChildOfClass("Humanoid")
+        humanoid.PlatformStand = true
+        
+        local bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+        bodyVelocity.Parent = LP.Character:FindFirstChild("HumanoidRootPart")
+        
+        UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if flyEnabled and not gameProcessed then
+                if input.KeyCode == Enum.KeyCode.Space then
+                    bodyVelocity.Velocity = Vector3.new(0, flySpeed * 50, 0)
+                elseif input.KeyCode == Enum.KeyCode.LeftShift then
+                    bodyVelocity.Velocity = Vector3.new(0, -flySpeed * 50, 0)
+                end
+            end
+        end)
+        
+        UserInputService.InputEnded:Connect(function(input, gameProcessed)
+            if flyEnabled and not gameProcessed then
+                if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.LeftShift then
+                    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                end
+            end
+        end)
+        
+        return bodyVelocity
+    end
+    return nil
+end
+
+local function handleNoclip()
+    if noclipEnabled and LP.Character then
+        for _, part in pairs(LP.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end
+
 -- Перемещение окна
 TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -573,8 +672,12 @@ end
 LP.CharacterAdded:Connect(function(character)
     -- Восстанавливаем видимость меню после смерти
     MainFrame.Visible = menuVisible
-    VersionLabel.Visible = true
     refreshCharacter()
+    
+    -- Применяем функции Player-вкладки при возрождении
+    if infJumpEnabled then handleInfJump() end
+    if flyEnabled then handleFly() end
+    if noclipEnabled then handleNoclip() end
 end)
 
 -- Обработка бинда скрытия
@@ -582,9 +685,28 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.KeyCode == hideBind then
         menuVisible = not menuVisible
         MainFrame.Visible = menuVisible
-        VersionLabel.Visible = menuVisible
     end
 end)
 
--- Запускаем фарм
+-- Цикл для Player-функций
+RunService.Stepped:Connect(function()
+    if noclipEnabled and LP.Character then
+        for _, part in pairs(LP.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Запускаем основные функции
 coroutine.wrap(farmCoins)()
+handleInfJump()
+coroutine.wrap(function()
+    while true do
+        if flyEnabled then
+            handleFly()
+        end
+        task.wait(0.1)
+    end
+end)()

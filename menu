@@ -4,6 +4,7 @@ local LP = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 -- Настройки
 local hideBind = Enum.KeyCode.RightShift
@@ -13,6 +14,7 @@ local currentSpeedIndex = 2
 local menuVisible = true
 local isDragging = false
 local dragStartPos, frameStartPos
+local saveConfigEnabled = false
 
 -- Состояния Player-функций
 local infJumpEnabled = false
@@ -22,6 +24,63 @@ local flySpeed = 50
 local flyControls = {f = 0, b = 0, l = 0, r = 0}
 local lastFlyControls = {f = 0, b = 0, l = 0, r = 0}
 local flyBG, flyBV
+
+-- Конфигурация
+local config = {
+    hideBind = hideBind,
+    farmingSpeed = farmingSpeed,
+    infJumpEnabled = infJumpEnabled,
+    flyEnabled = flyEnabled,
+    noclipEnabled = noclipEnabled,
+    flySpeed = flySpeed
+}
+
+-- Функции для работы с конфигом
+local function saveConfig()
+    if not saveConfigEnabled then return end
+    
+    local data = {
+        hideBind = tostring(config.hideBind),
+        farmingSpeed = config.farmingSpeed,
+        infJumpEnabled = config.infJumpEnabled,
+        flyEnabled = config.flyEnabled,
+        noclipEnabled = config.noclipEnabled,
+        flySpeed = config.flySpeed
+    }
+    
+    local success, err = pcall(function()
+        writefile("DekoConfig.json", HttpService:JSONEncode(data))
+    end)
+    
+    if not success then
+        warn("Failed to save config: "..err)
+    end
+end
+
+local function loadConfig()
+    local success, data = pcall(function()
+        if isfile("DekoConfig.json") then
+            return HttpService:JSONDecode(readfile("DekoConfig.json"))
+        end
+    end)
+    
+    if success and data then
+        config.hideBind = Enum.KeyCode[data.hideBind] or hideBind
+        config.farmingSpeed = data.farmingSpeed or farmingSpeed
+        config.infJumpEnabled = data.infJumpEnabled or false
+        config.flyEnabled = data.flyEnabled or false
+        config.noclipEnabled = data.noclipEnabled or false
+        config.flySpeed = data.flySpeed or flySpeed
+        
+        -- Применяем загруженные настройки
+        hideBind = config.hideBind
+        farmingSpeed = config.farmingSpeed
+        infJumpEnabled = config.infJumpEnabled
+        flyEnabled = config.flyEnabled
+        noclipEnabled = config.noclipEnabled
+        flySpeed = config.flySpeed
+    end
+end
 
 -- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
@@ -45,8 +104,8 @@ VersionLabel.Parent = ScreenGui
 -- Главное окно
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 220)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -110)
+MainFrame.Size = UDim2.new(0, 450, 0, 250)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -125)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.BorderSizePixel = 0
@@ -149,12 +208,15 @@ for i, tabName in ipairs(Tabs) do
     TabButton.BorderSizePixel = 0
     TabButton.Parent = TabButtons
     
-    local TabFrame = Instance.new("Frame")
+    local TabFrame = Instance.new("ScrollingFrame")
     TabFrame.Name = tabName.."Frame"
     TabFrame.Size = UDim2.new(1, -80, 1, -25)
     TabFrame.Position = UDim2.new(0, 80, 0, 25)
     TabFrame.BackgroundTransparency = 1
     TabFrame.Visible = i == 1
+    TabFrame.CanvasSize = UDim2.new(0, 0, 0, 500)
+    TabFrame.ScrollBarThickness = 5
+    TabFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
     TabFrame.Parent = MainFrame
     
     TabFrames[tabName] = TabFrame
@@ -172,6 +234,19 @@ for i, tabName in ipairs(Tabs) do
         end
     end)
 end
+
+-- Добавляем текст "Not added yet" во вкладку Fun
+local NotAddedLabel = Instance.new("TextLabel")
+NotAddedLabel.Name = "NotAddedLabel"
+NotAddedLabel.Size = UDim2.new(1, -20, 0, 50)
+NotAddedLabel.Position = UDim2.new(0, 10, 0, 10)
+NotAddedLabel.BackgroundTransparency = 1
+NotAddedLabel.Text = "Not added yet"
+NotAddedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+NotAddedLabel.Font = Enum.Font.GothamBold
+NotAddedLabel.TextSize = 16
+NotAddedLabel.TextXAlignment = Enum.TextXAlignment.Left
+NotAddedLabel.Parent = TabFrames["Fun"]
 
 -- Функционал сворачивания
 local minimized = false
@@ -246,6 +321,8 @@ local function createToggle(name, posY, defaultValue, callback, parentFrame, war
     local function updateState(state)
         ToggleButton.BackgroundColor3 = state and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
         callback(state)
+        config[name.."Enabled"] = state
+        saveConfig()
     end
     
     ToggleButton.MouseButton1Click:Connect(function()
@@ -298,6 +375,8 @@ local function createDropdown(name, posY, options, defaultIndex, callback, paren
         currentIndex = currentIndex % #options + 1
         DropdownButton.Text = options[currentIndex]
         callback(currentIndex)
+        config[name] = options[currentIndex]
+        saveConfig()
     end)
     
     return {
@@ -400,6 +479,8 @@ local function createKeybindButton(name, posY, currentKey, callback)
                 KeybindButton.Text = tostring(currentKey):gsub("Enum.KeyCode.", "")
                 KeybindButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
                 callback(currentKey)
+                config.hideBind = currentKey
+                saveConfig()
             end
         end
     end)
@@ -415,6 +496,14 @@ end
 local HideBindButton = createKeybindButton("Hide Menu Bind", 20, hideBind, function(newKey)
     hideBind = newKey
 end)
+
+-- Сохранение конфига
+local SaveConfigToggle = createToggle("Save Config", 70, saveConfigEnabled, function(state)
+    saveConfigEnabled = state
+    if state then
+        saveConfig()
+    end
+end, TabFrames["Settings"])
 
 -- Функции фарма
 local HRP, Humanoid
@@ -709,6 +798,19 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         MainFrame.Visible = menuVisible
     end
 end)
+
+-- Загрузка конфига при старте
+loadConfig()
+
+-- Применяем загруженные настройки
+if config then
+    HideBindButton.Update(config.hideBind)
+    SpeedDropdown.Update(table.find(SPEED_OPTIONS, config.farmingSpeed) or 2)
+    InfJumpToggle.Update(config.infJumpEnabled)
+    FlyToggle.Update(config.flyEnabled)
+    NoclipToggle.Update(config.noclipEnabled)
+    FlySpeedDropdown.Update(table.find({30, 50, 70, 100}, config.flySpeed) or 2)
+end
 
 -- Запускаем основные функции
 coroutine.wrap(farmCoins)()

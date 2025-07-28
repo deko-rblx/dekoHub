@@ -2,10 +2,13 @@ local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Настройки
 local COIN_LIMITS = {40, 50}
 local currentCoinLimit = 40
+local coinsCollected = 0
+local lastCoinTime = 0
 
 -- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
@@ -357,15 +360,42 @@ end
 local function checkCoinLimit()
     if not resetOnFullEnabled then return end
     
-    -- Здесь должна быть логика проверки количества собранных монет
-    -- Например, если у вас есть способ получить текущее количество монет:
-    -- local currentCoins = получить_количество_монет()
-    -- if currentCoins >= currentCoinLimit then
-    --     Humanoid.Health = 0
-    -- end
+    -- Получаем текущее количество монет (адаптируйте под вашу игру)
+    local currentCoins = 0
+    local success, err = pcall(function()
+        -- Попробуйте разные способы получения количества монет в зависимости от игры
+        if LP:FindFirstChild("leaderstats") and LP.leaderstats:FindFirstChild("Coins") then
+            currentCoins = LP.leaderstats.Coins.Value
+        elseif LP:FindFirstChild("Coins") then
+            currentCoins = LP.Coins.Value
+        end
+    end)
     
-    -- Временная заглушка (замените на реальную логику)
-    print("Проверка лимита монет: ", currentCoinLimit)
+    if not success then
+        warn("Не удалось получить количество монет: " .. err)
+        return
+    end
+    
+    -- Если монет больше лимита - умираем
+    if currentCoins >= currentCoinLimit and os.time() - lastCoinTime > 2 then
+        lastCoinTime = os.time()
+        
+        -- Способ смерти (адаптируйте под вашу игру)
+        local char = LP.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.Health = 0
+                coinsCollected = 0 -- Сбрасываем счетчик
+                
+                -- Альтернативный способ через RemoteEvent (если есть)
+                local deathEvent = ReplicatedStorage:FindFirstChild("DeathEvent")
+                if deathEvent then
+                    deathEvent:FireServer()
+                end
+            end
+        end
+    end
 end
 
 -- Основной цикл фарма
@@ -403,6 +433,9 @@ local function farmCoins()
                 
                 if not success then
                     refreshCharacter()
+                else
+                    -- Увеличиваем счетчик собранных монет
+                    coinsCollected = coinsCollected + 1
                 end
                 
                 -- Ожидаем пока монета не будет собрана
@@ -427,40 +460,3 @@ end
 
 -- Запускаем фарм в отдельном потоке
 coroutine.wrap(farmCoins)()
-
--- Делаем окно перемещаемым
-local dragging
-local dragInput
-local dragStart
-local startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-TitleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-TitleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
-    end
-end)

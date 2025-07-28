@@ -1,7 +1,8 @@
--- Autofarm Script with Toggle UI
+-- Autofarm Script with Advanced UI
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
 -- Autofarm Variables
 local LP = Players.LocalPlayer
@@ -9,22 +10,28 @@ local Char = LP.Character or LP.CharacterAdded:Wait()
 local HRP = Char:WaitForChild("HumanoidRootPart")
 local Humanoid = Char:WaitForChild("Humanoid")
 local AutofarmEnabled = false
+local CurrentMap = nil
+local Connection = nil
 
 -- UI Variables
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
-local ToggleButton = Instance.new("TextButton")
+local TabButtonsFrame = Instance.new("Frame")
+local TabContentFrame = Instance.new("Frame")
+local HomeTab, FarmTab
+local ActiveTab = "Home"
 
 -- Create UI
 function CreateUI()
-    ScreenGui.Name = "AutofarmUI"
+    ScreenGui.Name = "AdvancedAutofarmUI"
     ScreenGui.Parent = game.CoreGui
     ScreenGui.ResetOnSpawn = false
 
+    -- Main Window
     MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, 200, 0, 50)
-    MainFrame.Position = UDim2.new(0.5, -100, 0, 10)
-    MainFrame.AnchorPoint = Vector2.new(0.5, 0)
+    MainFrame.Size = UDim2.new(0, 300, 0, 200)
+    MainFrame.Position = UDim2.new(0.5, -150, 0.5, -100)
+    MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
     MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     MainFrame.BorderSizePixel = 0
     MainFrame.Parent = ScreenGui
@@ -33,19 +40,65 @@ function CreateUI()
     UICorner.CornerRadius = UDim.new(0, 8)
     UICorner.Parent = MainFrame
 
-    ToggleButton.Name = "ToggleButton"
-    ToggleButton.Size = UDim2.new(0.9, 0, 0.7, 0)
-    ToggleButton.Position = UDim2.new(0.05, 0, 0.15, 0)
-    ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ToggleButton.Text = "Autofarm: OFF"
-    ToggleButton.Font = Enum.Font.GothamBold
-    ToggleButton.TextSize = 14
-    ToggleButton.Parent = MainFrame
+    -- Title Bar
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Name = "TitleBar"
+    TitleBar.Size = UDim2.new(1, 0, 0, 30)
+    TitleBar.Position = UDim2.new(0, 0, 0, 0)
+    TitleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    TitleBar.BorderSizePixel = 0
+    TitleBar.Parent = MainFrame
 
-    local ButtonCorner = Instance.new("UICorner")
-    ButtonCorner.CornerRadius = UDim.new(0, 6)
-    ButtonCorner.Parent = ToggleButton
+    local TitleCorner = Instance.new("UICorner")
+    TitleCorner.CornerRadius = UDim.new(0, 8)
+    TitleCorner.Parent = TitleBar
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Name = "TitleLabel"
+    TitleLabel.Size = UDim2.new(0.8, 0, 1, 0)
+    TitleLabel.Position = UDim2.new(0.1, 0, 0, 0)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Text = "Advanced Autofarm"
+    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.TextSize = 16
+    TitleLabel.Font = Enum.Font.GothamBold
+    TitleLabel.Parent = TitleBar
+
+    -- Close Button
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Name = "CloseButton"
+    CloseButton.Size = UDim2.new(0, 30, 0, 30)
+    CloseButton.Position = UDim2.new(1, -30, 0, 0)
+    CloseButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.Text = "X"
+    CloseButton.Font = Enum.Font.GothamBold
+    CloseButton.TextSize = 16
+    CloseButton.Parent = TitleBar
+
+    CloseButton.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+    end)
+
+    -- Tab Buttons
+    TabButtonsFrame.Name = "TabButtonsFrame"
+    TabButtonsFrame.Size = UDim2.new(0, 80, 1, -30)
+    TabButtonsFrame.Position = UDim2.new(0, 0, 0, 30)
+    TabButtonsFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    TabButtonsFrame.BorderSizePixel = 0
+    TabButtonsFrame.Parent = MainFrame
+
+    -- Tab Content
+    TabContentFrame.Name = "TabContentFrame"
+    TabContentFrame.Size = UDim2.new(1, -80, 1, -30)
+    TabContentFrame.Position = UDim2.new(0, 80, 0, 30)
+    TabContentFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    TabContentFrame.BorderSizePixel = 0
+    TabContentFrame.Parent = MainFrame
+
+    -- Create Tabs
+    CreateHomeTab()
+    CreateFarmTab()
 
     -- Make UI draggable
     local dragging
@@ -58,7 +111,7 @@ function CreateUI()
         MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 
-    MainFrame.InputBegan:Connect(function(input)
+    TitleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             dragStart = input.Position
@@ -72,7 +125,7 @@ function CreateUI()
         end
     end)
 
-    MainFrame.InputChanged:Connect(function(input)
+    TitleBar.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement then
             dragInput = input
         end
@@ -85,22 +138,136 @@ function CreateUI()
     end)
 end
 
+function CreateHomeTab()
+    HomeTab = Instance.new("ScrollingFrame")
+    HomeTab.Name = "HomeTab"
+    HomeTab.Size = UDim2.new(1, 0, 1, 0)
+    HomeTab.Position = UDim2.new(0, 0, 0, 0)
+    HomeTab.BackgroundTransparency = 1
+    HomeTab.ScrollBarThickness = 3
+    HomeTab.Visible = (ActiveTab == "Home")
+    HomeTab.Parent = TabContentFrame
+
+    local WelcomeLabel = Instance.new("TextLabel")
+    WelcomeLabel.Name = "WelcomeLabel"
+    WelcomeLabel.Size = UDim2.new(1, -20, 0, 40)
+    WelcomeLabel.Position = UDim2.new(0, 10, 0, 10)
+    WelcomeLabel.BackgroundTransparency = 1
+    WelcomeLabel.Text = "Welcome to Advanced Autofarm"
+    WelcomeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    WelcomeLabel.TextSize = 18
+    WelcomeLabel.Font = Enum.Font.GothamBold
+    WelcomeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    WelcomeLabel.Parent = HomeTab
+
+    local HomeButton = Instance.new("TextButton")
+    HomeButton.Name = "HomeButton"
+    HomeButton.Size = UDim2.new(1, 0, 0, 30)
+    HomeButton.Position = UDim2.new(0, 0, 0, 0)
+    HomeButton.BackgroundColor3 = ActiveTab == "Home" and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+    HomeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    HomeButton.Text = "Home"
+    HomeButton.Font = Enum.Font.Gotham
+    HomeButton.TextSize = 14
+    HomeButton.Parent = TabButtonsFrame
+
+    HomeButton.MouseButton1Click:Connect(function()
+        SwitchTab("Home")
+    end)
+end
+
+function CreateFarmTab()
+    FarmTab = Instance.new("ScrollingFrame")
+    FarmTab.Name = "FarmTab"
+    FarmTab.Size = UDim2.new(1, 0, 1, 0)
+    FarmTab.Position = UDim2.new(0, 0, 0, 0)
+    FarmTab.BackgroundTransparency = 1
+    FarmTab.ScrollBarThickness = 3
+    FarmTab.Visible = (ActiveTab == "Farm")
+    FarmTab.Parent = TabContentFrame
+
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Name = "ToggleButton"
+    ToggleButton.Size = UDim2.new(1, -20, 0, 40)
+    ToggleButton.Position = UDim2.new(0, 10, 0, 10)
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleButton.Text = "Autofarm: OFF"
+    ToggleButton.Font = Enum.Font.GothamBold
+    ToggleButton.TextSize = 14
+    ToggleButton.Parent = FarmTab
+
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 6)
+    ButtonCorner.Parent = ToggleButton
+
+    ToggleButton.MouseButton1Click:Connect(ToggleAutofarm)
+
+    local StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Name = "StatusLabel"
+    StatusLabel.Size = UDim2.new(1, -20, 0, 20)
+    StatusLabel.Position = UDim2.new(0, 10, 0, 60)
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Text = "Status: Ready"
+    StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    StatusLabel.TextSize = 12
+    StatusLabel.Font = Enum.Font.Gotham
+    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    StatusLabel.Parent = FarmTab
+
+    local FarmButton = Instance.new("TextButton")
+    FarmButton.Name = "FarmButton"
+    FarmButton.Size = UDim2.new(1, 0, 0, 30)
+    FarmButton.Position = UDim2.new(0, 0, 0, 30)
+    FarmButton.BackgroundColor3 = ActiveTab == "Farm" and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+    FarmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    FarmButton.Text = "Farm"
+    FarmButton.Font = Enum.Font.Gotham
+    FarmButton.TextSize = 14
+    FarmButton.Parent = TabButtonsFrame
+
+    FarmButton.MouseButton1Click:Connect(function()
+        SwitchTab("Farm")
+    end)
+end
+
+function SwitchTab(tabName)
+    ActiveTab = tabName
+    
+    for _, child in ipairs(TabContentFrame:GetChildren()) do
+        if child:IsA("ScrollingFrame") then
+            child.Visible = (child.Name == tabName.."Tab")
+        end
+    end
+    
+    for _, child in ipairs(TabButtonsFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child.BackgroundColor3 = (child.Name == tabName.."Button") and Color3.fromRGB(50, 50, 50) or Color3.fromRGB(35, 35, 35)
+        end
+    end
+end
+
 -- Autofarm Functions
 function GetMap()
-    while true do
-        for _, obj in ipairs(workspace:GetChildren()) do
-            if obj:GetAttribute("MapID") and obj:FindFirstChild("CoinContainer") then
-                return obj
-            end
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:GetAttribute("MapID") and obj:FindFirstChild("CoinContainer") then
+            return obj
         end
-        task.wait()
+    end
+    return nil
+end
+
+function UpdateMap()
+    CurrentMap = GetMap()
+    if FarmTab and FarmTab:FindFirstChild("StatusLabel") then
+        FarmTab.StatusLabel.Text = CurrentMap and "Status: Found Map "..CurrentMap.Name or "Status: Map Not Found"
     end
 end
 
 function getNearest()
-    local map = GetMap()
+    if not CurrentMap then return nil end
     local closest, dist = nil, math.huge
-    for _, coin in ipairs(map.CoinContainer:GetChildren()) do
+    for _, coin in ipairs(CurrentMap.CoinContainer:GetChildren()) do
         local v = coin:FindFirstChild("CoinVisual")
         if v and not v:GetAttribute("Collected") then
             local d = (HRP.Position - coin.Position).Magnitude
@@ -124,13 +291,18 @@ end
 function ToggleAutofarm()
     AutofarmEnabled = not AutofarmEnabled
     
-    if AutofarmEnabled then
-        ToggleButton.Text = "Autofarm: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-        
-        -- Start autofarm coroutine
-        coroutine.wrap(function()
-            while AutofarmEnabled and task.wait() do
+    if FarmTab and FarmTab:FindFirstChild("ToggleButton") then
+        local button = FarmTab.ToggleButton
+        if AutofarmEnabled then
+            button.Text = "Autofarm: ON"
+            button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+            FarmTab.StatusLabel.Text = "Status: Farming..."
+            
+            -- Start autofarm coroutine
+            if Connection then Connection:Disconnect() end
+            Connection = RunService.Heartbeat:Connect(function()
+                if not AutofarmEnabled then return end
+                UpdateMap()
                 local target = getNearest()
                 if target and LP:GetAttribute("Alive") then
                     tp(target)
@@ -142,17 +314,19 @@ function ToggleAutofarm()
                         task.wait()
                     end
                 end
-            end
-        end)()
-    else
-        ToggleButton.Text = "Autofarm: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            end)
+        else
+            button.Text = "Autofarm: OFF"
+            button.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            FarmTab.StatusLabel.Text = CurrentMap and "Status: Found Map "..CurrentMap.Name or "Status: Map Not Found"
+            if Connection then Connection:Disconnect() end
+        end
     end
 end
 
 -- Initialize
 CreateUI()
-ToggleButton.MouseButton1Click:Connect(ToggleAutofarm)
+UpdateMap()
 
 -- Keybind (F to toggle)
 UIS.InputBegan:Connect(function(input, gameProcessed)
@@ -161,4 +335,4 @@ UIS.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("Autofarm script loaded! Click the button or press F to toggle.")
+print("Advanced Autofarm script loaded!")

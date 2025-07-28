@@ -1,47 +1,165 @@
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-
--- Переменные
 local LP = Players.LocalPlayer
-local Char = LP.Character or LP.CharacterAdded:Wait()
-local HRP = Char:WaitForChild("HumanoidRootPart")
-local Humanoid = Char:WaitForChild("Humanoid")
-local AutoFarmEnabled = false
-local FarmInterval = 15 -- Интервал в секундах
-local FarmConnection = nil
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
 
--- Создаем простой UI
+-- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AutoFarmUI"
-ScreenGui.Parent = game.CoreGui
+ScreenGui.Name = "DekoUI"
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 200, 0, 60)
-MainFrame.Position = UDim2.new(0, 10, 0, 10)
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 300, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MainFrame
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Title.Text = "Deko"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.Parent = MainFrame
 
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Size = UDim2.new(0.9, 0, 0.7, 0)
-ToggleButton.Position = UDim2.new(0.05, 0, 0.15, 0)
-ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.Text = "AutoFarm: OFF"
-ToggleButton.Font = Enum.Font.GothamBold
-ToggleButton.TextSize = 14
-ToggleButton.Parent = MainFrame
+local TabButtons = Instance.new("Frame")
+TabButtons.Name = "TabButtons"
+TabButtons.Size = UDim2.new(1, 0, 0, 30)
+TabButtons.Position = UDim2.new(0, 0, 0, 30)
+TabButtons.BackgroundTransparency = 1
+TabButtons.Parent = MainFrame
 
-local ButtonCorner = Instance.new("UICorner")
-ButtonCorner.CornerRadius = UDim.new(0, 6)
-ButtonCorner.Parent = ToggleButton
+local Tabs = {"Farm", "ESP", "Fun"}
+local TabFrames = {}
+
+for i, tabName in ipairs(Tabs) do
+    local TabButton = Instance.new("TextButton")
+    TabButton.Name = tabName.."Tab"
+    TabButton.Size = UDim2.new(1/#Tabs, 0, 1, 0)
+    TabButton.Position = UDim2.new((i-1)/#Tabs, 0, 0, 0)
+    TabButton.Text = tabName
+    TabButton.BackgroundColor3 = i == 1 and Color3.fromRGB(60, 60, 60) or Color3.fromRGB(40, 40, 40)
+    TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TabButton.Font = Enum.Font.Gotham
+    TabButton.TextSize = 14
+    TabButton.Parent = TabButtons
+    
+    local TabFrame = Instance.new("ScrollingFrame")
+    TabFrame.Name = tabName.."Frame"
+    TabFrame.Size = UDim2.new(1, 0, 1, -60)
+    TabFrame.Position = UDim2.new(0, 0, 0, 60)
+    TabFrame.BackgroundTransparency = 1
+    TabFrame.Visible = i == 1
+    TabFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TabFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    TabFrame.ScrollBarThickness = 5
+    TabFrame.Parent = MainFrame
+    
+    TabFrames[tabName] = TabFrame
+    
+    TabButton.MouseButton1Click:Connect(function()
+        for _, frame in pairs(TabFrames) do
+            frame.Visible = false
+        end
+        TabFrame.Visible = true
+        
+        for _, btn in ipairs(TabButtons:GetChildren()) do
+            if btn:IsA("TextButton") then
+                btn.BackgroundColor3 = btn == TabButton and Color3.fromRGB(60, 60, 60) or Color3.fromRGB(40, 40, 40)
+            end
+        end
+    end)
+end
+
+-- Функции для фарма монет
+local farmingEnabled = false
+local resetOnFull = false
+local HRP, Humanoid
+
+local function createToggle(name, parent, defaultValue, callback)
+    local ToggleFrame = Instance.new("Frame")
+    ToggleFrame.Name = name.."Toggle"
+    ToggleFrame.Size = UDim2.new(1, -20, 0, 30)
+    ToggleFrame.Position = UDim2.new(0, 10, 0, 0)
+    ToggleFrame.BackgroundTransparency = 1
+    ToggleFrame.Parent = parent
+    
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Name = "Button"
+    ToggleButton.Size = UDim2.new(0, 50, 0, 25)
+    ToggleButton.Position = UDim2.new(1, -50, 0.5, -12)
+    ToggleButton.Text = ""
+    ToggleButton.BackgroundColor3 = defaultValue and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+    ToggleButton.AutoButtonColor = false
+    ToggleButton.Parent = ToggleFrame
+    
+    local ToggleText = Instance.new("TextLabel")
+    ToggleText.Name = "Text"
+    ToggleText.Size = UDim2.new(1, -60, 1, 0)
+    ToggleText.Position = UDim2.new(0, 0, 0, 0)
+    ToggleText.Text = name
+    ToggleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleText.Font = Enum.Font.Gotham
+    ToggleText.TextSize = 14
+    ToggleText.TextXAlignment = Enum.TextXAlignment.Left
+    ToggleText.BackgroundTransparency = 1
+    ToggleText.Parent = ToggleFrame
+    
+    local function updateState(state)
+        ToggleButton.BackgroundColor3 = state and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+        callback(state)
+    end
+    
+    ToggleButton.MouseButton1Click:Connect(function()
+        updateState(not defaultValue)
+        defaultValue = not defaultValue
+    end)
+    
+    return {Update = updateState}
+end
+
+-- Создаем элементы управления фармом
+local FarmFrame = TabFrames["Farm"]
+
+local CoinFarmToggle = createToggle("Coin Farm", FarmFrame, farmingEnabled, function(state)
+    farmingEnabled = state
+end)
+
+local ResetOnFullToggle = createToggle("Reset On Full", FarmFrame, resetOnFull, function(state)
+    resetOnFull = state
+end)
 
 -- Функции для фарма
+local function getHRP()
+    while true do
+        if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            return LP.Character.HumanoidRootPart
+        end
+        task.wait(0.1)
+    end
+end
+
+local function getHumanoid()
+    while true do
+        if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+            return LP.Character.Humanoid
+        end
+        task.wait(0.1)
+    end
+end
+
+local function refreshCharacter()
+    HRP = getHRP()
+    Humanoid = getHumanoid()
+end
+
 local function GetMap()
     while true do
         for _, obj in ipairs(workspace:GetChildren()) do
@@ -49,13 +167,16 @@ local function GetMap()
                 return obj
             end
         end
-        task.wait()
+        task.wait(0.1)
     end
 end
 
 local function getNearest()
+    if not HRP then return nil end
+    
     local map = GetMap()
     local closest, dist = nil, math.huge
+    
     for _, coin in ipairs(map.CoinContainer:GetChildren()) do
         local v = coin:FindFirstChild("CoinVisual")
         if v and not v:GetAttribute("Collected") then
@@ -66,68 +187,95 @@ local function getNearest()
             end
         end
     end
+    
     return closest
 end
 
-local function tp(hp)
+local function tpToCoin(coin)
+    if not HRP or not Humanoid then return false end
+    
     Humanoid:ChangeState(11)
-    local d = (HRP.Position - hp.Position).Magnitude
-    local t = TweenService:Create(HRP, TweenInfo.new(d / 25, Enum.EasingStyle.Linear), {CFrame = hp.CFrame})
-    t:Play()
-    t.Completed:Wait()
-end
-
-local function RunFarmCycle()
-    local target = getNearest()
-    if target and LP:GetAttribute("Alive") then
-        tp(target)
-        local v = target:FindFirstChild("CoinVisual")
-        while v and not v:GetAttribute("Collected") and v.Parent do
-            if not AutoFarmEnabled or not LP:GetAttribute("Alive") then break end
-            local n = getNearest()
-            if n and n ~= target then break end
-            task.wait()
-        end
-    end
-end
-
--- Функция для периодического выполнения фарма
-local function StartAutoFarm()
-    if FarmConnection then
-        FarmConnection:Disconnect()
-    end
+    local distance = (HRP.Position - coin.Position).Magnitude
+    local tween = TweenService:Create(
+        HRP,
+        TweenInfo.new(distance / 25, Enum.EasingStyle.Linear),
+        {CFrame = coin.CFrame}
+    )
     
-    FarmConnection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not AutoFarmEnabled then return end
-        
-        RunFarmCycle()
-        task.wait(FarmInterval) -- Ждем 15 секунд перед следующим запуском
+    tween:Play()
+    tween.Completed:Wait()
+    return true
+end
+
+-- Основной цикл фарма
+local function farmCoins()
+    refreshCharacter()
+    LP.CharacterAdded:Connect(function()
+        refreshCharacter()
     end)
+
+    while true do
+        if farmingEnabled then
+            -- Ждем пока игрок жив
+            while not LP:GetAttribute("Alive") do
+                task.wait(0.5)
+            end
+            
+            -- Проверяем наличие персонажа
+            if not LP.Character or not HRP or not Humanoid then
+                refreshCharacter()
+                task.wait(1)
+                continue
+            end
+            
+            -- Ищем ближайшую монету
+            local target = getNearest()
+            
+            if target then
+                -- Пытаемся телепортироваться
+                local success = pcall(function()
+                    tpToCoin(target)
+                end)
+                
+                if not success then
+                    refreshCharacter()
+                end
+                
+                -- Ожидаем пока монета не будет собрана
+                local v = target:FindFirstChild("CoinVisual")
+                while v and not v:GetAttribute("Collected") and v.Parent do
+                    if not LP:GetAttribute("Alive") then break end
+                    
+                    -- Проверяем не появилась ли более близкая монета
+                    local newTarget = getNearest()
+                    if newTarget and newTarget ~= target then
+                        target = newTarget
+                        break
+                    end
+                    
+                    task.wait(0.1)
+                end
+            end
+        end
+        task.wait(0.1)
+    end
 end
 
--- Обработчик кнопки
-ToggleButton.MouseButton1Click:Connect(function()
-    AutoFarmEnabled = not AutoFarmEnabled
-    ToggleButton.Text = AutoFarmEnabled and "AutoFarm: ON" or "AutoFarm: OFF"
-    ToggleButton.BackgroundColor3 = AutoFarmEnabled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
-    
-    if AutoFarmEnabled then
-        StartAutoFarm()
-    elseif FarmConnection then
-        FarmConnection:Disconnect()
-    end
-end)
+-- Запускаем фарм в отдельном потоке
+coroutine.wrap(farmCoins)()
 
--- Горячая клавиша (F для включения/выключения)
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.F and not gameProcessed then
-        ToggleButton:Activate()
-    end
-end)
+-- Делаем окно перемещаемым
+local dragging
+local dragInput
+local dragStart
+local startPos
 
--- Делаем окно перетаскиваемым
-local dragging, dragInput, dragStart, startPos
-MainFrame.InputBegan:Connect(function(input)
+local function update(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+Title.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
         dragStart = input.Position
@@ -141,17 +289,14 @@ MainFrame.InputBegan:Connect(function(input)
     end
 end)
 
-MainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
+Title.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
         dragInput = input
     end
 end)
 
-UIS.InputChanged:Connect(function(input)
+UserInputService.InputChanged:Connect(function(input)
     if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        update(input)
     end
 end)
-
-print("AutoFarm loaded! Press F to toggle.")

@@ -134,7 +134,7 @@ Title.Name = "Title"
 Title.Size = UDim2.new(0, 100, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Deko"
+Title.Text = "Deko | Simple farm instance"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 14
@@ -247,6 +247,18 @@ NotAddedLabel.Font = Enum.Font.GothamBold
 NotAddedLabel.TextSize = 16
 NotAddedLabel.TextXAlignment = Enum.TextXAlignment.Left
 NotAddedLabel.Parent = TabFrames["Fun"]
+
+local NotAddedLabel = Instance.new("TextLabel")
+NotAddedLabel.Name = "NotAddedLabel"
+NotAddedLabel.Size = UDim2.new(1, -20, 0, 50)
+NotAddedLabel.Position = UDim2.new(0, 10, 0, 10)
+NotAddedLabel.BackgroundTransparency = 1
+NotAddedLabel.Text = "Not added yet"
+NotAddedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+NotAddedLabel.Font = Enum.Font.GothamBold
+NotAddedLabel.TextSize = 16
+NotAddedLabel.TextXAlignment = Enum.TextXAlignment.Left
+NotAddedLabel.Parent = TabFrames["ESP"]
 
 -- Функционал сворачивания
 local minimized = false

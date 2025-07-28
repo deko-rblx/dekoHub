@@ -10,7 +10,9 @@ local currentCoinLimit = 40
 local coinsCollected = 0
 local lastCoinTime = 0
 local hideBind = Enum.KeyCode.RightShift
-local farmingSpeed = 22 -- Увеличенная скорость (было 15)
+local farmingSpeed = 20 -- Базовая скорость
+local SPEED_OPTIONS = {15, 20, 25, 30} -- Варианты скорости
+local currentSpeedIndex = 2 -- По умолчанию 20
 local menuVisible = true
 
 -- Создаем основной интерфейс
@@ -33,8 +35,8 @@ VersionLabel.Parent = ScreenGui
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 200)
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -100)
+MainFrame.Size = UDim2.new(0, 450, 0, 220) -- Увеличили высоту для новых элементов
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -110)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.BorderSizePixel = 0
@@ -178,18 +180,14 @@ CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
--- Элементы управления фармом
-local FarmFrame = TabFrames["Farm"]
-local farmingEnabled = false
-local resetOnFullEnabled = false
-
+-- Функции для создания элементов UI
 local function createToggle(name, posY, defaultValue, callback)
     local ToggleFrame = Instance.new("Frame")
     ToggleFrame.Name = name.."Toggle"
     ToggleFrame.Size = UDim2.new(0, 150, 0, 30)
     ToggleFrame.Position = UDim2.new(0, 20, 0, posY)
     ToggleFrame.BackgroundTransparency = 1
-    ToggleFrame.Parent = FarmFrame
+    ToggleFrame.Parent = TabFrames["Farm"]
     
     local ToggleButton = Instance.new("TextButton")
     ToggleButton.Name = "Button"
@@ -236,7 +234,7 @@ local function createDropdown(name, posY, options, defaultIndex, callback)
     DropdownFrame.Size = UDim2.new(0, 150, 0, 30)
     DropdownFrame.Position = UDim2.new(0, 20, 0, posY)
     DropdownFrame.BackgroundTransparency = 1
-    DropdownFrame.Parent = FarmFrame
+    DropdownFrame.Parent = TabFrames["Farm"]
     
     local DropdownButton = Instance.new("TextButton")
     DropdownButton.Name = "Button"
@@ -283,7 +281,10 @@ local function createDropdown(name, posY, options, defaultIndex, callback)
     }
 end
 
--- Создаем элементы управления
+-- Элементы управления фармом
+local farmingEnabled = false
+local resetOnFullEnabled = false
+
 local CoinFarmToggle = createToggle("Auto Farm", 20, farmingEnabled, function(state)
     farmingEnabled = state
 end)
@@ -296,16 +297,19 @@ local CoinLimitDropdown = createDropdown("Coin Limit", 100, {"40", "50"}, 1, fun
     currentCoinLimit = COIN_LIMITS[index]
 end)
 
--- Настройки вкладки Settings
-local SettingsFrame = TabFrames["Settings"]
+-- Добавляем выбор скорости
+local SpeedDropdown = createDropdown("Farm Speed", 140, {"15", "20", "25", "30"}, currentSpeedIndex, function(index)
+    farmingSpeed = SPEED_OPTIONS[index]
+end)
 
+-- Настройки вкладки Settings
 local function createKeybindButton(name, posY, currentKey, callback)
     local KeybindFrame = Instance.new("Frame")
     KeybindFrame.Name = name.."Keybind"
     KeybindFrame.Size = UDim2.new(0, 200, 0, 30)
     KeybindFrame.Position = UDim2.new(0, 20, 0, posY)
     KeybindFrame.BackgroundTransparency = 1
-    KeybindFrame.Parent = SettingsFrame
+    KeybindFrame.Parent = TabFrames["Settings"]
     
     local KeybindText = Instance.new("TextLabel")
     KeybindText.Name = "Text"
@@ -343,8 +347,7 @@ local function createKeybindButton(name, posY, currentKey, callback)
         KeybindButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
     end)
     
-    local connection
-    connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if listening and not gameProcessed then
             if input.UserInputType == Enum.UserInputType.Keyboard then
                 listening = false
@@ -352,7 +355,6 @@ local function createKeybindButton(name, posY, currentKey, callback)
                 KeybindButton.Text = tostring(currentKey):gsub("Enum.KeyCode.", "")
                 KeybindButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
                 callback(currentKey)
-                connection:Disconnect()
             end
         end
     end)
@@ -442,80 +444,83 @@ local function tpToCoin(coin)
     return true
 end
 
-local function checkCoinLimit()
+-- Функция для проверки заполненности сумки
+local function checkBagFull()
     if not resetOnFullEnabled then return end
     
-    local currentCoins = 0
-    local success, err = pcall(function()
-        if LP:FindFirstChild("leaderstats") and LP.leaderstats:FindFirstChild("Coins") then
-            currentCoins = LP.leaderstats.Coins.Value
-        elseif LP:FindFirstChild("Coins") then
-            currentCoins = LP.Coins.Value
-        end
-    end)
+    -- Получаем контейнер с сумками
+    local container = LP.PlayerGui:FindFirstChild("MainGui") and 
+                     LP.PlayerGui.MainGui:FindFirstChild("Container")
     
-    if not success then
-        warn("Не удалось получить количество монет: " .. err)
-        return
-    end
-    
-    if currentCoins >= currentCoinLimit and os.time() - lastCoinTime > 2 then
-        lastCoinTime = os.time()
-        local char = LP.Character
-        if char then
-            local humanoid = char:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid.Health = 0
-                coinsCollected = 0
-                
-                local deathEvent = ReplicatedStorage:FindFirstChild("DeathEvent")
-                if deathEvent then
-                    deathEvent:FireServer()
+    if container then
+        for _, bagFrame in pairs(container:GetChildren()) do
+            if bagFrame:IsA("Frame") and bagFrame:FindFirstChild("Full") then
+                if bagFrame.Full.Visible then
+                    -- Если сумка полная - убиваем персонажа
+                    local char = LP.Character
+                    if char then
+                        local humanoid = char:FindFirstChildOfClass("Humanoid")
+                        if humanoid then
+                            humanoid.Health = 0
+                            return true
+                        end
+                    end
                 end
             end
         end
     end
+    return false
 end
 
 -- Основной цикл фарма
 local function farmCoins()
     refreshCharacter()
-    LP.CharacterAdded:Connect(function()
+    
+    -- Обработчик возрождения персонажа
+    LP.CharacterAdded:Connect(function(character)
         refreshCharacter()
-        MainFrame.Visible = menuVisible -- Восстанавливаем видимость меню после смерти
+        MainFrame.Visible = menuVisible -- Восстанавливаем видимость меню
     end)
 
     while true do
         if farmingEnabled then
+            -- Ждем пока игрок жив
             while not LP:GetAttribute("Alive") do
                 task.wait(0.5)
             end
             
+            -- Проверяем наличие персонажа
             if not LP.Character or not HRP or not Humanoid then
                 refreshCharacter()
                 task.wait(1)
                 continue
             end
             
-            checkCoinLimit()
+            -- Проверяем заполненность сумки
+            if checkBagFull() then
+                task.wait(1)
+                continue
+            end
             
+            -- Ищем ближайшую монету
             local target = getNearest()
             
             if target then
+                -- Пытаемся телепортироваться
                 local success = pcall(function()
                     tpToCoin(target)
                 end)
                 
                 if not success then
                     refreshCharacter()
-                else
-                    coinsCollected = coinsCollected + 1
                 end
                 
+                -- Ожидаем пока монета не будет собрана
                 local v = target:FindFirstChild("CoinVisual")
                 while v and not v:GetAttribute("Collected") and v.Parent do
                     if not LP:GetAttribute("Alive") then break end
                     
+                    -- Проверяем не появилась ли более близкая монета
                     local newTarget = getNearest()
                     if newTarget and newTarget ~= target then
                         target = newTarget

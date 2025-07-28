@@ -1,281 +1,92 @@
--- Основные сервисы
+-- Autofarm Script with Toggle UI
+local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
 
--- Локальные переменные
+-- Autofarm Variables
 local LP = Players.LocalPlayer
-local Mouse = LP:GetMouse()
-local GUI = nil
-local ActiveTab = nil
+local Char = LP.Character or LP.CharacterAdded:Wait()
+local HRP = Char:WaitForChild("HumanoidRootPart")
+local Humanoid = Char:WaitForChild("Humanoid")
 local AutofarmEnabled = false
 
--- Создаем основной UI
-function CreateMainUI()
-    -- Основной экран
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "CheatMenu"
+-- UI Variables
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local ToggleButton = Instance.new("TextButton")
+
+-- Create UI
+function CreateUI()
+    ScreenGui.Name = "AutofarmUI"
     ScreenGui.Parent = game.CoreGui
     ScreenGui.ResetOnSpawn = false
 
-    -- Основной фрейм
-    local MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, 450, 0, 300)
-    MainFrame.Position = UDim2.new(0.5, -225, 0.5, -150)
-    MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    MainFrame.Size = UDim2.new(0, 200, 0, 50)
+    MainFrame.Position = UDim2.new(0.5, -100, 0, 10)
+    MainFrame.AnchorPoint = Vector2.new(0.5, 0)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     MainFrame.BorderSizePixel = 0
-    MainFrame.ClipsDescendants = true
-    
-    -- Скругление углов
+    MainFrame.Parent = ScreenGui
+
     local UICorner = Instance.new("UICorner")
     UICorner.CornerRadius = UDim.new(0, 8)
     UICorner.Parent = MainFrame
-    
-    -- Тень
-    local UIStroke = Instance.new("UIStroke")
-    UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    UIStroke.Color = Color3.fromRGB(60, 60, 60)
-    UIStroke.LineJoinMode = Enum.LineJoinMode.Round
-    UIStroke.Thickness = 1
-    UIStroke.Parent = MainFrame
-    
-    -- Заголовок
-    local Title = Instance.new("TextLabel")
-    Title.Name = "Title"
-    Title.Size = UDim2.new(1, 0, 0, 30)
-    Title.Position = UDim2.new(0, 0, 0, 0)
-    Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    Title.BorderSizePixel = 0
-    Title.Text = "Roblox Cheat Menu"
-    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Title.TextSize = 18
-    Title.Font = Enum.Font.GothamSemibold
-    Title.Parent = MainFrame
-    
-    -- Скругление заголовка
-    local TitleCorner = Instance.new("UICorner")
-    TitleCorner.CornerRadius = UDim.new(0, 8)
-    TitleCorner.Parent = Title
-    
-    -- Закрытие UI
-    local CloseButton = Instance.new("TextButton")
-    CloseButton.Name = "CloseButton"
-    CloseButton.Size = UDim2.new(0, 30, 0, 30)
-    CloseButton.Position = UDim2.new(1, -30, 0, 0)
-    CloseButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    CloseButton.BorderSizePixel = 0
-    CloseButton.Text = "X"
-    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CloseButton.TextSize = 18
-    CloseButton.Font = Enum.Font.GothamSemibold
-    CloseButton.Parent = Title
-    
-    CloseButton.MouseButton1Click:Connect(function()
-        ScreenGui:Destroy()
-    end)
-    
-    -- Вкладки
-    local TabButtonsFrame = Instance.new("Frame")
-    TabButtonsFrame.Name = "TabButtonsFrame"
-    TabButtonsFrame.Size = UDim2.new(0, 100, 1, -30)
-    TabButtonsFrame.Position = UDim2.new(0, 0, 0, 30)
-    TabButtonsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    TabButtonsFrame.BorderSizePixel = 0
-    TabButtonsFrame.Parent = MainFrame
-    
-    -- Контент вкладок
-    local TabContentFrame = Instance.new("Frame")
-    TabContentFrame.Name = "TabContentFrame"
-    TabContentFrame.Size = UDim2.new(1, -100, 1, -30)
-    TabContentFrame.Position = UDim2.new(0, 100, 0, 30)
-    TabContentFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    TabContentFrame.BorderSizePixel = 0
-    TabContentFrame.Parent = MainFrame
-    
-    -- Делаем UI перетаскиваемым
-    local Dragging = false
-    local DragStartPos = Vector2.new(0, 0)
-    local FrameStartPos = Vector2.new(0, 0)
-    
-    Title.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            Dragging = true
-            DragStartPos = Vector2.new(input.Position.X, input.Position.Y)
-            FrameStartPos = Vector2.new(MainFrame.AbsolutePosition.X, MainFrame.AbsolutePosition.Y)
-        end
-    end)
-    
-    Title.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            Dragging = false
-        end
-    end)
-    
-    UIS.InputChanged:Connect(function(input)
-        if Dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local Delta = Vector2.new(input.Position.X, input.Position.Y) - DragStartPos
-            MainFrame.Position = UDim2.new(0, FrameStartPos.X + Delta.X, 0, FrameStartPos.Y + Delta.Y)
-        end
-    end)
-    
-    return {
-        ScreenGui = ScreenGui,
-        MainFrame = MainFrame,
-        TabButtonsFrame = TabButtonsFrame,
-        TabContentFrame = TabContentFrame
-    }
-end
 
--- Создаем вкладку
-function CreateTab(ui, name)
-    local TabButton = Instance.new("TextButton")
-    TabButton.Name = name.."TabButton"
-    TabButton.Size = UDim2.new(1, 0, 0, 40)
-    TabButton.Position = UDim2.new(0, 0, 0, #ui.TabButtonsFrame:GetChildren() * 40)
-    TabButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    TabButton.BorderSizePixel = 0
-    TabButton.Text = name
-    TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TabButton.TextSize = 14
-    TabButton.Font = Enum.Font.Gotham
-    TabButton.Parent = ui.TabButtonsFrame
-    
-    local TabContent = Instance.new("ScrollingFrame")
-    TabContent.Name = name.."TabContent"
-    TabContent.Size = UDim2.new(1, 0, 1, 0)
-    TabContent.Position = UDim2.new(0, 0, 0, 0)
-    TabContent.BackgroundTransparency = 1
-    TabContent.BorderSizePixel = 0
-    TabContent.ScrollBarThickness = 3
-    TabContent.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 60)
-    TabContent.Visible = false
-    TabContent.Parent = ui.TabContentFrame
-    
-    local UIListLayout = Instance.new("UIListLayout")
-    UIListLayout.Padding = UDim.new(0, 5)
-    UIListLayout.Parent = TabContent
-    
-    TabButton.MouseButton1Click:Connect(function()
-        for _, child in ipairs(ui.TabContentFrame:GetChildren()) do
-            if child:IsA("ScrollingFrame") then
-                child.Visible = false
-            end
-        end
-        TabContent.Visible = true
-        
-        for _, child in ipairs(ui.TabButtonsFrame:GetChildren()) do
-            if child:IsA("TextButton") then
-                child.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-            end
-        end
-        TabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        
-        ActiveTab = name
-    end)
-    
-    return TabContent
-end
-
--- Создаем переключатель
-function CreateToggle(parent, name, callback)
-    local ToggleFrame = Instance.new("Frame")
-    ToggleFrame.Name = name.."ToggleFrame"
-    ToggleFrame.Size = UDim2.new(1, -20, 0, 30)
-    ToggleFrame.Position = UDim2.new(0, 10, 0, #parent:GetChildren() * 35)
-    ToggleFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    ToggleFrame.BorderSizePixel = 0
-    ToggleFrame.Parent = parent
-    
-    local UICorner = Instance.new("UICorner")
-    UICorner.CornerRadius = UDim.new(0, 4)
-    UICorner.Parent = ToggleFrame
-    
-    local ToggleName = Instance.new("TextLabel")
-    ToggleName.Name = "ToggleName"
-    ToggleName.Size = UDim2.new(0.7, 0, 1, 0)
-    ToggleName.Position = UDim2.new(0, 10, 0, 0)
-    ToggleName.BackgroundTransparency = 1
-    ToggleName.Text = name
-    ToggleName.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ToggleName.TextSize = 14
-    ToggleName.TextXAlignment = Enum.TextXAlignment.Left
-    ToggleName.Font = Enum.Font.Gotham
-    ToggleName.Parent = ToggleFrame
-    
-    local ToggleButton = Instance.new("TextButton")
     ToggleButton.Name = "ToggleButton"
-    ToggleButton.Size = UDim2.new(0, 50, 0, 25)
-    ToggleButton.Position = UDim2.new(1, -60, 0.5, -12)
-    ToggleButton.AnchorPoint = Vector2.new(1, 0.5)
+    ToggleButton.Size = UDim2.new(0.9, 0, 0.7, 0)
+    ToggleButton.Position = UDim2.new(0.05, 0, 0.15, 0)
     ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-    ToggleButton.BorderSizePixel = 0
-    ToggleButton.Text = ""
-    ToggleButton.Parent = ToggleFrame
-    
-    local ToggleUICorner = Instance.new("UICorner")
-    ToggleUICorner.CornerRadius = UDim.new(0, 12)
-    ToggleUICorner.Parent = ToggleButton
-    
-    local ToggleIndicator = Instance.new("Frame")
-    ToggleIndicator.Name = "ToggleIndicator"
-    ToggleIndicator.Size = UDim2.new(0, 21, 0, 21)
-    ToggleIndicator.Position = UDim2.new(0, 2, 0.5, -10)
-    ToggleIndicator.AnchorPoint = Vector2.new(0, 0.5)
-    ToggleIndicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ToggleIndicator.BorderSizePixel = 0
-    ToggleIndicator.Parent = ToggleButton
-    
-    local IndicatorCorner = Instance.new("UICorner")
-    IndicatorCorner.CornerRadius = UDim.new(0, 10)
-    IndicatorCorner.Parent = ToggleIndicator
-    
-    local isToggled = false
-    
-    local function UpdateToggle()
-        if isToggled then
-            TweenService:Create(ToggleIndicator, TweenInfo.new(0.2), {
-                Position = UDim2.new(1, -23, 0.5, -10),
-                BackgroundColor3 = Color3.fromRGB(100, 255, 100)
-            }):Play()
-            TweenService:Create(ToggleButton, TweenInfo.new(0.2), {
-                BackgroundColor3 = Color3.fromRGB(60, 160, 60)
-            }):Play()
-        else
-            TweenService:Create(ToggleIndicator, TweenInfo.new(0.2), {
-                Position = UDim2.new(0, 2, 0.5, -10),
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            }):Play()
-            TweenService:Create(ToggleButton, TweenInfo.new(0.2), {
-                BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-            }):Play()
-        end
+    ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleButton.Text = "Autofarm: OFF"
+    ToggleButton.Font = Enum.Font.GothamBold
+    ToggleButton.TextSize = 14
+    ToggleButton.Parent = MainFrame
+
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 6)
+    ButtonCorner.Parent = ToggleButton
+
+    -- Make UI draggable
+    local dragging
+    local dragInput
+    local dragStart
+    local startPos
+
+    local function updateInput(input)
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
-    
-    ToggleButton.MouseButton1Click:Connect(function()
-        isToggled = not isToggled
-        UpdateToggle()
-        callback(isToggled)
-    end)
-    
-    UpdateToggle()
-    
-    return {
-        Set = function(value)
-            isToggled = value
-            UpdateToggle()
-            callback(value)
-        end,
-        Get = function()
-            return isToggled
+
+    MainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
         end
-    }
+    end)
+
+    MainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            updateInput(input)
+        end
+    end)
 end
 
--- Autofarm функционал
-local function GetMap()
+-- Autofarm Functions
+function GetMap()
     while true do
         for _, obj in ipairs(workspace:GetChildren()) do
             if obj:GetAttribute("MapID") and obj:FindFirstChild("CoinContainer") then
@@ -286,7 +97,7 @@ local function GetMap()
     end
 end
 
-local function getNearest()
+function getNearest()
     local map = GetMap()
     local closest, dist = nil, math.huge
     for _, coin in ipairs(map.CoinContainer:GetChildren()) do
@@ -302,7 +113,7 @@ local function getNearest()
     return closest
 end
 
-local function tp(hp)
+function tp(hp)
     Humanoid:ChangeState(11)
     local d = (HRP.Position - hp.Position).Magnitude
     local t = TweenService:Create(HRP, TweenInfo.new(d / 25, Enum.EasingStyle.Linear), {CFrame = hp.CFrame})
@@ -310,101 +121,44 @@ local function tp(hp)
     t.Completed:Wait()
 end
 
-local function AutofarmLoop()
-    while AutofarmEnabled and task.wait() do
-        local target = getNearest()
-        if target and LP:GetAttribute("Alive") then
-            tp(target)
-            local v = target:FindFirstChild("CoinVisual")
-            while v and not v:GetAttribute("Collected") and v.Parent do
-                if not AutofarmEnabled or not LP:GetAttribute("Alive") then break end
-                local n = getNearest()
-                if n and n ~= target then break end
-                task.wait()
+function ToggleAutofarm()
+    AutofarmEnabled = not AutofarmEnabled
+    
+    if AutofarmEnabled then
+        ToggleButton.Text = "Autofarm: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        
+        -- Start autofarm coroutine
+        coroutine.wrap(function()
+            while AutofarmEnabled and task.wait() do
+                local target = getNearest()
+                if target and LP:GetAttribute("Alive") then
+                    tp(target)
+                    local v = target:FindFirstChild("CoinVisual")
+                    while v and not v:GetAttribute("Collected") and v.Parent do
+                        if not AutofarmEnabled or not LP:GetAttribute("Alive") then break end
+                        local n = getNearest()
+                        if n and n ~= target then break end
+                        task.wait()
+                    end
+                end
             end
-        end
+        end)()
+    else
+        ToggleButton.Text = "Autofarm: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     end
 end
 
--- Создаем UI
-GUI = CreateMainUI()
+-- Initialize
+CreateUI()
+ToggleButton.MouseButton1Click:Connect(ToggleAutofarm)
 
--- Вкладка Farm
-local FarmTab = CreateTab(GUI, "Farm")
-local FarmSection = Instance.new("Frame")
-FarmSection.Name = "FarmSection"
-FarmSection.Size = UDim2.new(1, -20, 0, 150)
-FarmSection.Position = UDim2.new(0, 10, 0, 10)
-FarmSection.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-FarmSection.BorderSizePixel = 0
-FarmSection.Parent = FarmTab
-
-local FarmCorner = Instance.new("UICorner")
-FarmCorner.CornerRadius = UDim.new(0, 6)
-FarmCorner.Parent = FarmSection
-
-local FarmTitle = Instance.new("TextLabel")
-FarmTitle.Name = "FarmTitle"
-FarmTitle.Size = UDim2.new(1, 0, 0, 30)
-FarmTitle.Position = UDim2.new(0, 0, 0, 0)
-FarmTitle.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-FarmTitle.BorderSizePixel = 0
-FarmTitle.Text = "Autofarm"
-FarmTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-FarmTitle.TextSize = 16
-FarmTitle.Font = Enum.Font.GothamSemibold
-FarmTitle.Parent = FarmSection
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 6)
-TitleCorner.Parent = FarmTitle
-
-local FarmContent = Instance.new("Frame")
-FarmContent.Name = "FarmContent"
-FarmContent.Size = UDim2.new(1, 0, 1, -30)
-FarmContent.Position = UDim2.new(0, 0, 0, 30)
-FarmContent.BackgroundTransparency = 1
-FarmContent.Parent = FarmSection
-
-local AutofarmToggle = CreateToggle(FarmContent, "Enable Autofarm", function(value)
-    AutofarmEnabled = value
-    if value then
-        coroutine.wrap(AutofarmLoop)()
-    end
-end)
-
--- Вкладка Credits
-local CreditsTab = CreateTab(GUI, "Credits")
-local CreditsLabel = Instance.new("TextLabel")
-CreditsLabel.Name = "CreditsLabel"
-CreditsLabel.Size = UDim2.new(1, -20, 0, 100)
-CreditsLabel.Position = UDim2.new(0, 10, 0, 10)
-CreditsLabel.BackgroundTransparency = 1
-CreditsLabel.Text = "Script by: deko\n\nUI: Custom Made\n\nVersion: 1.0"
-CreditsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-CreditsLabel.TextSize = 14
-CreditsLabel.TextYAlignment = Enum.TextYAlignment.Top
-CreditsLabel.Font = Enum.Font.Gotham
-CreditsLabel.Parent = CreditsTab
-
--- Активируем первую вкладку
-for _, child in ipairs(GUI.TabButtonsFrame:GetChildren()) do
-    if child:IsA("TextButton") then
-        child.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-        break
-    end
-end
-
-for _, child in ipairs(GUI.TabContentFrame:GetChildren()) do
-    if child:IsA("ScrollingFrame") then
-        child.Visible = true
-        break
-    end
-end
-
--- Hotkey для открытия/закрытия UI
+-- Keybind (F to toggle)
 UIS.InputBegan:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.RightControl and not gameProcessed then
-        GUI.MainFrame.Visible = not GUI.MainFrame.Visible
+    if input.KeyCode == Enum.KeyCode.F and not gameProcessed then
+        ToggleAutofarm()
     end
 end)
+
+print("Autofarm script loaded! Click the button or press F to toggle.")

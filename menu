@@ -3,6 +3,10 @@ local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 
+-- Настройки
+local COIN_LIMITS = {40, 50}
+local currentCoinLimit = 40
+
 -- Создаем основной интерфейс
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "DekoUI"
@@ -10,12 +14,17 @@ ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 180) -- Горизонтальный прямоугольник
-MainFrame.Position = UDim2.new(0.5, -225, 0.5, -90)
+MainFrame.Size = UDim2.new(0, 450, 0, 200)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -100)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
+
+-- Скругление углов
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 6)
+UICorner.Parent = MainFrame
 
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
@@ -24,6 +33,11 @@ TitleBar.Position = UDim2.new(0, 0, 0, 0)
 TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
+
+-- Скругление только сверху
+local UICornerTitle = Instance.new("UICorner")
+UICornerTitle.CornerRadius = UDim.new(0, 6)
+UICornerTitle.Parent = TitleBar
 
 local Title = Instance.new("TextLabel")
 Title.Name = "Title"
@@ -37,7 +51,7 @@ Title.TextSize = 14
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TitleBar
 
--- Кнопки управления окном
+-- Кнопки управления
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Name = "MinimizeButton"
 MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
@@ -62,7 +76,7 @@ CloseButton.Font = Enum.Font.GothamBold
 CloseButton.TextSize = 14
 CloseButton.Parent = TitleBar
 
--- Эффекты при наведении
+-- Эффекты кнопок
 CloseButton.MouseEnter:Connect(function()
     CloseButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
 end)
@@ -79,7 +93,7 @@ MinimizeButton.MouseLeave:Connect(function()
     MinimizeButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 end)
 
--- Вкладки (теперь слева вертикально)
+-- Вкладки
 local TabButtons = Instance.new("Frame")
 TabButtons.Name = "TabButtons"
 TabButtons.Size = UDim2.new(0, 80, 1, -25)
@@ -128,7 +142,7 @@ for i, tabName in ipairs(Tabs) do
     end)
 end
 
--- Функционал кнопок управления
+-- Функционал сворачивания
 local minimized = false
 local originalSize = MainFrame.Size
 
@@ -149,8 +163,11 @@ CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
--- Создаем элементы управления фармом
+-- Элементы управления фармом
 local FarmFrame = TabFrames["Farm"]
+local farmingEnabled = false
+local resetOnFullEnabled = false
+local HRP, Humanoid
 
 local function createToggle(name, posY, defaultValue, callback)
     local ToggleFrame = Instance.new("Frame")
@@ -169,6 +186,10 @@ local function createToggle(name, posY, defaultValue, callback)
     ToggleButton.AutoButtonColor = false
     ToggleButton.BorderSizePixel = 0
     ToggleButton.Parent = ToggleFrame
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 10)
+    UICorner.Parent = ToggleButton
     
     local ToggleText = Instance.new("TextLabel")
     ToggleText.Name = "Text"
@@ -195,16 +216,217 @@ local function createToggle(name, posY, defaultValue, callback)
     return {Update = updateState}
 end
 
-local farmingEnabled = false
-local resetOnFull = false
+local function createDropdown(name, posY, options, defaultIndex, callback)
+    local DropdownFrame = Instance.new("Frame")
+    DropdownFrame.Name = name.."Dropdown"
+    DropdownFrame.Size = UDim2.new(0, 150, 0, 30)
+    DropdownFrame.Position = UDim2.new(0, 20, 0, posY)
+    DropdownFrame.BackgroundTransparency = 1
+    DropdownFrame.Parent = FarmFrame
+    
+    local DropdownButton = Instance.new("TextButton")
+    DropdownButton.Name = "Button"
+    DropdownButton.Size = UDim2.new(0, 60, 0, 25)
+    DropdownButton.Position = UDim2.new(0, 80, 0.5, -12)
+    DropdownButton.Text = options[defaultIndex]
+    DropdownButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    DropdownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    DropdownButton.Font = Enum.Font.Gotham
+    DropdownButton.TextSize = 12
+    DropdownButton.BorderSizePixel = 0
+    DropdownButton.Parent = DropdownFrame
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 4)
+    UICorner.Parent = DropdownButton
+    
+    local DropdownText = Instance.new("TextLabel")
+    DropdownText.Name = "Text"
+    DropdownText.Size = UDim2.new(0, 70, 1, 0)
+    DropdownText.Position = UDim2.new(0, 0, 0, 0)
+    DropdownText.Text = name
+    DropdownText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    DropdownText.Font = Enum.Font.Gotham
+    DropdownText.TextSize = 12
+    DropdownText.TextXAlignment = Enum.TextXAlignment.Left
+    DropdownText.BackgroundTransparency = 1
+    DropdownText.Parent = DropdownFrame
+    
+    local currentIndex = defaultIndex
+    
+    DropdownButton.MouseButton1Click:Connect(function()
+        currentIndex = currentIndex % #options + 1
+        DropdownButton.Text = options[currentIndex]
+        callback(currentIndex)
+    end)
+    
+    return {
+        Update = function(index)
+            currentIndex = index
+            DropdownButton.Text = options[currentIndex]
+            callback(currentIndex)
+        end
+    }
+end
 
+-- Создаем элементы управления
 local CoinFarmToggle = createToggle("Auto Farm", 20, farmingEnabled, function(state)
     farmingEnabled = state
 end)
 
-local ResetOnFullToggle = createToggle("Reset On Full", 60, resetOnFull, function(state)
-    resetOnFull = state
+local ResetOnFullToggle = createToggle("Reset On Full", 60, resetOnFullEnabled, function(state)
+    resetOnFullEnabled = state
 end)
+
+local CoinLimitDropdown = createDropdown("Coin Limit", 100, {"40", "50"}, 1, function(index)
+    currentCoinLimit = COIN_LIMITS[index]
+end)
+
+-- Функции фарма
+local function getHRP()
+    while true do
+        if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            return LP.Character.HumanoidRootPart
+        end
+        task.wait(0.1)
+    end
+end
+
+local function getHumanoid()
+    while true do
+        if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+            return LP.Character.Humanoid
+        end
+        task.wait(0.1)
+    end
+end
+
+local function refreshCharacter()
+    HRP = getHRP()
+    Humanoid = getHumanoid()
+end
+
+local function GetMap()
+    while true do
+        for _, obj in ipairs(workspace:GetChildren()) do
+            if obj:GetAttribute("MapID") and obj:FindFirstChild("CoinContainer") then
+                return obj
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+local function getNearest()
+    if not HRP then return nil end
+    
+    local map = GetMap()
+    local closest, dist = nil, math.huge
+    
+    for _, coin in ipairs(map.CoinContainer:GetChildren()) do
+        local v = coin:FindFirstChild("CoinVisual")
+        if v and not v:GetAttribute("Collected") then
+            local d = (HRP.Position - coin.Position).Magnitude
+            if d < dist then
+                closest = coin
+                dist = d
+            end
+        end
+    end
+    
+    return closest
+end
+
+local function tpToCoin(coin)
+    if not HRP or not Humanoid then return false end
+    
+    Humanoid:ChangeState(11)
+    local distance = (HRP.Position - coin.Position).Magnitude
+    local tween = TweenService:Create(
+        HRP,
+        TweenInfo.new(distance / 25, Enum.EasingStyle.Linear),
+        {CFrame = coin.CFrame}
+    )
+    
+    tween:Play()
+    tween.Completed:Wait()
+    return true
+end
+
+-- Функция для проверки количества монет и смерти при необходимости
+local function checkCoinLimit()
+    if not resetOnFullEnabled then return end
+    
+    -- Здесь должна быть логика проверки количества собранных монет
+    -- Например, если у вас есть способ получить текущее количество монет:
+    -- local currentCoins = получить_количество_монет()
+    -- if currentCoins >= currentCoinLimit then
+    --     Humanoid.Health = 0
+    -- end
+    
+    -- Временная заглушка (замените на реальную логику)
+    print("Проверка лимита монет: ", currentCoinLimit)
+end
+
+-- Основной цикл фарма
+local function farmCoins()
+    refreshCharacter()
+    LP.CharacterAdded:Connect(function()
+        refreshCharacter()
+    end)
+
+    while true do
+        if farmingEnabled then
+            -- Ждем пока игрок жив
+            while not LP:GetAttribute("Alive") do
+                task.wait(0.5)
+            end
+            
+            -- Проверяем наличие персонажа
+            if not LP.Character or not HRP or not Humanoid then
+                refreshCharacter()
+                task.wait(1)
+                continue
+            end
+            
+            -- Проверяем лимит монет
+            checkCoinLimit()
+            
+            -- Ищем ближайшую монету
+            local target = getNearest()
+            
+            if target then
+                -- Пытаемся телепортироваться
+                local success = pcall(function()
+                    tpToCoin(target)
+                end)
+                
+                if not success then
+                    refreshCharacter()
+                end
+                
+                -- Ожидаем пока монета не будет собрана
+                local v = target:FindFirstChild("CoinVisual")
+                while v and not v:GetAttribute("Collected") and v.Parent do
+                    if not LP:GetAttribute("Alive") then break end
+                    
+                    -- Проверяем не появилась ли более близкая монета
+                    local newTarget = getNearest()
+                    if newTarget and newTarget ~= target then
+                        target = newTarget
+                        break
+                    end
+                    
+                    task.wait(0.1)
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+-- Запускаем фарм в отдельном потоке
+coroutine.wrap(farmCoins)()
 
 -- Делаем окно перемещаемым
 local dragging
@@ -242,6 +464,3 @@ UserInputService.InputChanged:Connect(function(input)
         update(input)
     end
 end)
-
--- Остальной код фарма монет остается без изменений
--- (вставьте сюда ваш код фарма из предыдущего скрипта)

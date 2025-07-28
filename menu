@@ -14,26 +14,70 @@ MainFrame.Name = "MainFrame"
 MainFrame.Size = UDim2.new(0, 300, 0, 350)
 MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
+
+-- Скругление углов
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local UICornerTitle = Instance.new("UICorner")
+UICornerTitle.CornerRadius = UDim.new(0, 8)
+UICornerTitle.Parent = TitleBar
 
 local Title = Instance.new("TextLabel")
 Title.Name = "Title"
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.Position = UDim2.new(0, 0, 0, 0)
-Title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
 Title.Text = "Deko"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 18
-Title.Parent = MainFrame
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -30, 0, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+CloseButton.BorderSizePixel = 0
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 14
+CloseButton.Parent = TitleBar
+
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+CloseButton.MouseEnter:Connect(function()
+    CloseButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+end)
+
+CloseButton.MouseLeave:Connect(function()
+    CloseButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+end)
 
 local TabButtons = Instance.new("Frame")
 TabButtons.Name = "TabButtons"
-TabButtons.Size = UDim2.new(1, 0, 0, 30)
+TabButtons.Size = UDim2.new(1, 0, 0, 35)
 TabButtons.Position = UDim2.new(0, 0, 0, 30)
-TabButtons.BackgroundTransparency = 1
+TabButtons.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+TabButtons.BorderSizePixel = 0
 TabButtons.Parent = MainFrame
 
 local Tabs = {"Farm", "ESP", "Fun"}
@@ -42,24 +86,26 @@ local TabFrames = {}
 for i, tabName in ipairs(Tabs) do
     local TabButton = Instance.new("TextButton")
     TabButton.Name = tabName.."Tab"
-    TabButton.Size = UDim2.new(1/#Tabs, 0, 1, 0)
+    TabButton.Size = UDim2.new(1/#Tabs, -2, 1, 0)
     TabButton.Position = UDim2.new((i-1)/#Tabs, 0, 0, 0)
     TabButton.Text = tabName
-    TabButton.BackgroundColor3 = i == 1 and Color3.fromRGB(60, 60, 60) or Color3.fromRGB(40, 40, 40)
+    TabButton.BackgroundColor3 = i == 1 and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(25, 25, 25)
     TabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     TabButton.Font = Enum.Font.Gotham
     TabButton.TextSize = 14
+    TabButton.BorderSizePixel = 0
     TabButton.Parent = TabButtons
     
     local TabFrame = Instance.new("ScrollingFrame")
     TabFrame.Name = tabName.."Frame"
-    TabFrame.Size = UDim2.new(1, 0, 1, -60)
-    TabFrame.Position = UDim2.new(0, 0, 0, 60)
+    TabFrame.Size = UDim2.new(1, -10, 1, -75)
+    TabFrame.Position = UDim2.new(0, 5, 0, 65)
     TabFrame.BackgroundTransparency = 1
     TabFrame.Visible = i == 1
     TabFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     TabFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
     TabFrame.ScrollBarThickness = 5
+    TabFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
     TabFrame.Parent = MainFrame
     
     TabFrames[tabName] = TabFrame
@@ -72,7 +118,7 @@ for i, tabName in ipairs(Tabs) do
         
         for _, btn in ipairs(TabButtons:GetChildren()) do
             if btn:IsA("TextButton") then
-                btn.BackgroundColor3 = btn == TabButton and Color3.fromRGB(60, 60, 60) or Color3.fromRGB(40, 40, 40)
+                btn.BackgroundColor3 = btn == TabButton and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(25, 25, 25)
             end
         end
     end)
@@ -96,9 +142,26 @@ local function createToggle(name, parent, defaultValue, callback)
     ToggleButton.Size = UDim2.new(0, 50, 0, 25)
     ToggleButton.Position = UDim2.new(1, -50, 0.5, -12)
     ToggleButton.Text = ""
-    ToggleButton.BackgroundColor3 = defaultValue and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+    ToggleButton.BackgroundColor3 = defaultValue and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
     ToggleButton.AutoButtonColor = false
+    ToggleButton.BorderSizePixel = 0
     ToggleButton.Parent = ToggleFrame
+    
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(1, 0)
+    UICorner.Parent = ToggleButton
+    
+    local ToggleCircle = Instance.new("Frame")
+    ToggleCircle.Name = "Circle"
+    ToggleCircle.Size = UDim2.new(0, 21, 0, 21)
+    ToggleCircle.Position = UDim2.new(0, defaultValue and 29 or 2, 0.5, -10)
+    ToggleCircle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleCircle.BorderSizePixel = 0
+    ToggleCircle.Parent = ToggleButton
+    
+    local UICornerCircle = Instance.new("UICorner")
+    UICornerCircle.CornerRadius = UDim.new(1, 0)
+    UICornerCircle.Parent = ToggleCircle
     
     local ToggleText = Instance.new("TextLabel")
     ToggleText.Name = "Text"
@@ -113,13 +176,20 @@ local function createToggle(name, parent, defaultValue, callback)
     ToggleText.Parent = ToggleFrame
     
     local function updateState(state)
-        ToggleButton.BackgroundColor3 = state and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+        farmingEnabled = state
+        ToggleButton.BackgroundColor3 = state and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
+        local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut)
+        local tween = TweenService:Create(
+            ToggleCircle,
+            tweenInfo,
+            {Position = UDim2.new(0, state and 29 or 2, 0.5, -10)}
+        )
+        tween:Play()
         callback(state)
     end
     
     ToggleButton.MouseButton1Click:Connect(function()
-        updateState(not defaultValue)
-        defaultValue = not defaultValue
+        updateState(not farmingEnabled)
     end)
     
     return {Update = updateState}
@@ -128,13 +198,18 @@ end
 -- Создаем элементы управления фармом
 local FarmFrame = TabFrames["Farm"]
 
-local CoinFarmToggle = createToggle("Coin Farm", FarmFrame, farmingEnabled, function(state)
+local CoinFarmToggle = createToggle("Auto Farm", FarmFrame, farmingEnabled, function(state)
     farmingEnabled = state
 end)
 
 local ResetOnFullToggle = createToggle("Reset On Full", FarmFrame, resetOnFull, function(state)
     resetOnFull = state
 end)
+
+-- Добавляем отступ между элементами
+local UIPadding = Instance.new("UIPadding")
+UIPadding.PaddingTop = UDim.new(0, 10)
+UIPadding.Parent = FarmFrame
 
 -- Функции для фарма
 local function getHRP()
@@ -275,7 +350,7 @@ local function update(input)
     MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 end
 
-Title.InputBegan:Connect(function(input)
+TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
         dragStart = input.Position
@@ -289,7 +364,7 @@ Title.InputBegan:Connect(function(input)
     end
 end)
 
-Title.InputChanged:Connect(function(input)
+TitleBar.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
         dragInput = input
     end

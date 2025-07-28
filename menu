@@ -1,9 +1,7 @@
--- Ultra Autofarm Script with Noclip and Gradient UI
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
 
 -- Autofarm Variables
 local LP = Players.LocalPlayer
@@ -12,169 +10,138 @@ local HRP = Char:WaitForChild("HumanoidRootPart")
 local Humanoid = Char:WaitForChild("Humanoid")
 local AutofarmEnabled = false
 local CurrentMap = nil
-local NoclipEnabled = false
-local NoclipConnection = nil
+local AutofarmConnection = nil
 
--- UI Setup
+-- Simple UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "UltraAutofarmUI"
-ScreenGui.Parent = CoreGui
+ScreenGui.Name = "SimpleAutofarmUI"
+ScreenGui.Parent = game.CoreGui
 ScreenGui.ResetOnSpawn = false
 
--- Main Window
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 350, 0, 250)
-MainFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
-MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-MainFrame.BackgroundTransparency = 0.15
+MainFrame.Size = UDim2.new(0, 200, 0, 60)
+MainFrame.Position = UDim2.new(0, 10, 0, 10)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Parent = ScreenGui
 
--- Cosmic Background
-local Background = Instance.new("ImageLabel")
-Background.Name = "CosmicBackground"
-Background.Size = UDim2.new(1, 0, 1, 0)
-Background.Position = UDim2.new(0, 0, 0, 0)
-Background.Image = "rbxassetid://13088277178" -- Красивое космическое изображение
-Background.ScaleType = Enum.ScaleType.Tile
-Background.TileSize = UDim2.new(0, 512, 0, 512)
-Background.BackgroundTransparency = 1
-Background.ZIndex = 0
-Background.Parent = MainFrame
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
 
--- Анимация фона
-local xOffset = 0
-RunService.Heartbeat:Connect(function(delta)
-    xOffset = (xOffset + delta * 5) % 512
-    Background.Offset = Vector2.new(xOffset, 0)
-end)
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Size = UDim2.new(0.9, 0, 0.7, 0)
+ToggleButton.Position = UDim2.new(0.05, 0, 0.15, 0)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Text = "Autofarm: OFF"
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.TextSize = 14
+ToggleButton.Parent = MainFrame
 
--- Функция создания кнопок с градиентом
-local function CreateGradientButton(parent, name, size, position)
-    local button = Instance.new("TextButton")
-    button.Name = name
-    button.Size = size
-    button.Position = position
-    button.Text = name
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 14
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.BackgroundTransparency = 1
-    button.AutoButtonColor = false
-    button.Parent = parent
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 6)
+ButtonCorner.Parent = ToggleButton
 
-    -- Gradient Frame
-    local gradientFrame = Instance.new("Frame")
-    gradientFrame.Name = "GradientFrame"
-    gradientFrame.Size = UDim2.new(1, 0, 1, 0)
-    gradientFrame.BackgroundTransparency = 0.8
-    gradientFrame.BorderSizePixel = 0
-    gradientFrame.ZIndex = -1
-    gradientFrame.Parent = button
-
-    -- Gradient
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 20, 150)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 0, 90))
-    })
-    gradient.Rotation = 90
-    gradient.Parent = gradientFrame
-
-    -- Corner
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 6)
-    corner.Parent = gradientFrame
-
-    -- Stroke
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(120, 40, 180)
-    stroke.Thickness = 1
-    stroke.Parent = gradientFrame
-
-    -- Hover Effects
-    button.MouseEnter:Connect(function()
-        TweenService:Create(gradient, TweenInfo.new(0.2), {
-            Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(110, 40, 170)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 10, 120))
-            })
-        }):Play()
-    end)
-
-    button.MouseLeave:Connect(function()
-        TweenService:Create(gradient, TweenInfo.new(0.2), {
-            Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 20, 150)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(50, 0, 90))
-            })
-        }):Play()
-    end)
-
-    return button
+-- Improved Map Detection with Auto-Restart
+function GetCurrentMap()
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:GetAttribute("MapID") and obj:FindFirstChild("CoinContainer") then
+            return obj
+        end
+    end
+    return nil
 end
 
--- Noclip Function
-local function NoclipLoop()
-    if NoclipConnection then NoclipConnection:Disconnect() end
-    
-    NoclipConnection = RunService.Stepped:Connect(function()
-        if NoclipEnabled and Char then
-            for _, part in ipairs(Char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
+function CheckMapChange()
+    local newMap = GetCurrentMap()
+    if newMap ~= CurrentMap then
+        CurrentMap = newMap
+        if AutofarmEnabled then
+            StartAutofarm()
+        end
+    end
+end
+
+function getNearest()
+    if not CurrentMap then return nil end
+    local closest, dist = nil, math.huge
+    for _, coin in ipairs(CurrentMap.CoinContainer:GetChildren()) do
+        local v = coin:FindFirstChild("CoinVisual")
+        if v and not v:GetAttribute("Collected") then
+            local d = (HRP.Position - coin.Position).Magnitude
+            if d < dist then
+                closest = coin
+                dist = d
             end
         end
-    end)
+    end
+    return closest
 end
 
--- Автофарм с Noclip
-local function ToggleAutofarm()
-    AutofarmEnabled = not AutofarmEnabled
-    NoclipEnabled = AutofarmEnabled
-    
-    if AutofarmEnabled then
-        NoclipLoop()
-        -- Запускаем фарминг
-    else
-        if NoclipConnection then
-            NoclipConnection:Disconnect()
+function tp(hp)
+    Humanoid:ChangeState(11)
+    local d = (HRP.Position - hp.Position).Magnitude
+    local t = TweenService:Create(HRP, TweenInfo.new(d / 25, Enum.EasingStyle.Linear), {CFrame = hp.CFrame})
+    t:Play()
+    t.Completed:Wait()
+end
+
+function AutofarmLoop()
+    while AutofarmEnabled and task.wait() do
+        CheckMapChange() -- Check for map changes
+        
+        local target = getNearest()
+        if target and LP:GetAttribute("Alive") then
+            tp(target)
+            local v = target:FindFirstChild("CoinVisual")
+            while v and not v:GetAttribute("Collected") and v.Parent do
+                if not AutofarmEnabled or not LP:GetAttribute("Alive") then break end
+                local n = getNearest()
+                if n and n ~= target then break end
+                task.wait()
+            end
         end
     end
 end
 
--- Создаем кнопку Autofarm с градиентом
-local AutofarmButton = CreateGradientButton(
-    MainFrame,
-    "Autofarm: OFF",
-    UDim2.new(0.8, 0, 0, 40),
-    UDim2.new(0.1, 0, 0.3, 0)
-)
+function StartAutofarm()
+    if AutofarmConnection then
+        AutofarmConnection:Disconnect()
+    end
+    
+    CurrentMap = GetCurrentMap()
+    AutofarmConnection = RunService.Heartbeat:Connect(function()
+        if not AutofarmEnabled then return end
+        AutofarmLoop()
+    end)
+end
 
-AutofarmButton.MouseButton1Click:Connect(function()
-    ToggleAutofarm()
-    AutofarmButton.Text = AutofarmEnabled and "Autofarm: ON" or "Autofarm: OFF"
-end)
+function ToggleAutofarm()
+    AutofarmEnabled = not AutofarmEnabled
+    ToggleButton.Text = AutofarmEnabled and "Autofarm: ON" or "Autofarm: OFF"
+    ToggleButton.BackgroundColor3 = AutofarmEnabled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
+    
+    if AutofarmEnabled then
+        StartAutofarm()
+    elseif AutofarmConnection then
+        AutofarmConnection:Disconnect()
+    end
+end
 
--- Кнопка закрытия с градиентом
-local CloseButton = CreateGradientButton(
-    MainFrame,
-    "X",
-    UDim2.new(0, 30, 0, 30),
-    UDim2.new(1, -35, 0, 5)
-)
+-- Initialize
+ToggleButton.MouseButton1Click:Connect(ToggleAutofarm)
 
-CloseButton.MouseButton1Click:Connect(function()
-    ScreenGui:Destroy()
-    if NoclipConnection then
-        NoclipConnection:Disconnect()
+-- Hotkey (F to toggle)
+UIS.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.F and not gameProcessed then
+        ToggleAutofarm()
     end
 end)
 
--- Делаем окно перетаскиваемым
+-- Make UI draggable
 local dragging, dragInput, dragStart, startPos
 MainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -203,12 +170,4 @@ UIS.InputChanged:Connect(function(input)
     end
 end)
 
--- Hotkey (F для включения/выключения)
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.F and not gameProcessed then
-        ToggleAutofarm()
-        AutofarmButton.Text = AutofarmEnabled and "Autofarm: ON" or "Autofarm: OFF"
-    end
-end)
-
-print("Ultra Autofarm UI loaded! Press F to toggle.")
+print("Simple Autofarm loaded! Press F to toggle.")

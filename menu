@@ -65,6 +65,18 @@ local function loadConfig()
     end)
     
     if success and data then
+        -- ... (существующие настройки)
+        config.antiAfkEnabled = data.antiAfkEnabled ~= nil and data.antiAfkEnabled or true
+        antiAfkEnabled = config.antiAfkEnabled
+    end
+    
+    -- Применяем анти-AFK при загрузке
+    if antiAfkEnabled then
+        setupAntiAfk()
+    end
+end
+    
+    if success and data then
         config.hideBind = Enum.KeyCode[data.hideBind] or hideBind
         config.farmingSpeed = data.farmingSpeed or farmingSpeed
         config.infJumpEnabled = data.infJumpEnabled or false
@@ -439,6 +451,45 @@ local FlySpeedDropdown = createDropdown("Fly Speed", 170, {"30", "50", "70", "10
 end, TabFrames["Player"])
 
 -- Настройки вкладки Settings
+-- Настройка анти-AFK
+local VirtualUser = game:GetService("VirtualUser")
+local antiAfkEnabled = true
+
+-- Функция для включения/выключения анти-AFK
+local function setupAntiAfk()
+    if antiAfkEnabled then
+        -- Подключаем обработчики для VirtualUser
+        LP.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+            warn("Anti-AFK triggered to prevent kick")
+        end)
+        
+        -- Альтернативный метод: периодическое движение
+        coroutine.wrap(function()
+            while antiAfkEnabled and task.wait(30) do
+                pcall(function()
+                    if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+                        LP.Character.Humanoid:Move(Vector3.new(
+                            math.random(-1, 1),
+                            0,
+                            math.random(-1, 1)
+                        )
+                    end
+                end)
+            end
+        end)()
+    end
+end
+
+-- Добавьте это в раздел создания элементов UI (после других toggle-элементов)
+local AntiAfkToggle = createToggle("Anti-AFK", 120, antiAfkEnabled, function(state)
+    antiAfkEnabled = state
+    if state then
+        setupAntiAfk()
+    end
+end, TabFrames["Settings"])
+
 local function createKeybindButton(name, posY, currentKey, callback)
     local KeybindFrame = Instance.new("Frame")
     KeybindFrame.Name = name.."Keybind"

@@ -5,7 +5,6 @@ local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
-local VirtualUser = game:GetService("VirtualUser")
 
 -- Настройки
 local hideBind = Enum.KeyCode.RightShift
@@ -706,31 +705,6 @@ UserInputService.JumpRequest:Connect(function()
         LP.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
     end
 end)
-
-coroutine.wrap(function()
-        while task.wait(30) do
-            pcall(function()
-                if LP.Character and LP.Character:FindFirstChild("Humanoid") then
-                    LP.Character.Humanoid:Move(Vector3.new(
-                        math.random(-1, 1),
-                        0,
-                        math.random(-1, 1)
-                    ))
-                end
-            end)
-        end
-    end)()
-end
-
-local function setupAntiAfk()
-    -- Метод VirtualUser (официальный способ)
-    LP.Idled:Connect(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-        warn("Anti-AFK: Simulated activity to prevent kick")
-    end)
-
-setupAntiAfk()
 
 -- Перемещение окна
 TitleBar.InputBegan:Connect(function(input)
